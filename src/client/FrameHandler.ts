@@ -2,6 +2,7 @@ import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame
 import RakNetClient from "./RaknetClient";
 import { BinaryStream } from "@serenityjs/binarystream";
 import { accessSync } from "fs";
+import { NetworkSettingsPacket } from "@serenityjs/protocol";
 
 export class FrameHandler {
 	private receivedFrameSequences = new Set<number>();
@@ -31,19 +32,25 @@ export class FrameHandler {
 			console.error('Received an empty buffer!');
 			return;
 		}
-        const header = (buffer[0] as number) & 0xf0;
-		console.log("Received Header!", header);
-		if(header == 254) process.exit() // Just so i know it receives it
+        const header = (buffer[0] as number);
 		switch (header) {
 			default: {
 				// Format the packet id to a hex string
 				const id = header.toString(16).length === 1 ? '0' + header.toString(16) : header.toString(16);
-				return console.log(`Caught unhandled offline packet 0x${id}!`);		
+				console.log(buffer)	
+				return console.log(`Caught unhandled packet 0x${id}!`);	
 				break;
 			}
 
-			case 0xfe: {
+			case 254: {
 				console.log('Received Game packet');
+				if(buffer[2] && buffer[2] == 143){
+					const NetWorkSettings = new NetworkSettingsPacket(buffer);
+					console.log(NetWorkSettings.deserialize())
+					break;
+				}
+	
+				console.log("Unhandeled GAME PACKET! - ",buffer[2])
 			}
 			
 			case Packet.ConnectedPing: {
