@@ -33,6 +33,7 @@ export class FrameHandler {
 		}
         const header = (buffer[0] as number) & 0xf0;
 		console.log("Received Header!", header);
+		if(header == 254) process.exit() // Just so i know it receives it
 		switch (header) {
 			default: {
 				// Format the packet id to a hex string
@@ -95,6 +96,7 @@ export class FrameHandler {
 				    }
 
 				    this.client.queue.sendFrame(frame, Priority.Immediate);
+					void this.client.emit("connect", this);
                 } catch(error){
                         console.log("Error in Frame Serialise")
                         console.error(error)
@@ -155,7 +157,7 @@ export class FrameHandler {
 
 				// Handle the packet
 				try {
-					this.incomingBatch(frame.payload);
+						this.incomingBatch(frame.payload);
 				} catch (error) {
 					this.handleBatchError(error, frame.payload[0]);
 				}
@@ -170,7 +172,7 @@ export class FrameHandler {
 
 					// Handle the packet and delete it from the queue
 					try {
-						this.incomingBatch(frame.payload);
+								this.incomingBatch(frame.payload);
 					} catch (error) {
 						this.handleBatchError(error, frame.payload[0]);
 					}
