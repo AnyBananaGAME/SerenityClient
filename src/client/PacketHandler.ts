@@ -1,4 +1,4 @@
-import { Address, ConnectionRequest, Frame, OpenConnectionReply1, OpenConnectionReply2, OpenConnectionRequest1, OpenConnectionRequest2, Packet, Priority, Reliability, UnconnectedPing } from "@serenityjs/raknet";
+import { Ack, Address, ConnectionRequest, Frame, Nack, OpenConnectionReply1, OpenConnectionReply2, OpenConnectionRequest1, OpenConnectionRequest2, Packet, Priority, Reliability, UnconnectedPing } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import { FrameHandler } from "./FrameHandler";
 
@@ -13,7 +13,8 @@ export class PacketHandler {
 
     public handleIncoming(buffer: Buffer){
         const packetId = buffer[0];
-        console.info('Received packet ', packetId);
+        let ignore = [132, 192]
+        if(!ignore.includes(packetId)) console.info('Received packet ', packetId);
         switch (packetId) {
             case 254:
                 process.exit(0);
@@ -25,8 +26,12 @@ export class PacketHandler {
                 this.handleOpenConnectionRequest(buffer);
                 break;
             case Packet.Ack:
+                const ack = new Ack(buffer).deserialize();
+                //console.log(ack)
                 break;
             case Packet.Nack:
+                const pak = new Nack(buffer).deserialize();
+                console.log(pak)
                 break;
             case 128:
             case 129:
@@ -58,7 +63,7 @@ export class PacketHandler {
 		packet.client = BigInt(this.client.id);
 		packet.timestamp = BigInt(Date.now());
 		const frame = new Frame();
-		frame.reliability = Reliability.ReliableOrdered;
+		frame.reliability = Reliability.Reliable;
 		frame.orderChannel = 0;
 		frame.payload = packet.serialize();
 		this.client.queue.sendFrame(frame, Priority.Immediate);
@@ -88,4 +93,8 @@ export class PacketHandler {
         this.client.send(packet.serialize());
         console.info('Sent Unconnected Ping');
     }
+
+
+
+
 }

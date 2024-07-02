@@ -1,11 +1,12 @@
 import EventEmitter from "events";
 import { PlayerStatus } from "./client/PlayerStatus";
 import { Options, defaultOptions } from "./client/ClientOptions"
-import { Network, NetworkSession } from "@serenityjs/network";
+import { GAME_BYTE, Network, NetworkSession } from "@serenityjs/network";
 import { Connection, Frame, Priority, Reliability, Server } from "@serenityjs/raknet";
 import RakNetClient from "./client/RaknetClient";
-import { DataPacket, LoginPacket, LoginTokens, RequestNetworkSettingsPacket } from "@serenityjs/protocol";
+import { CompressionMethod, DataPacket, Framer, LoginPacket, LoginTokens, RequestNetworkSettingsPacket } from "@serenityjs/protocol";
 import { KeyPairKeyObjectResult } from "crypto";
+import { deflateRawSync } from "zlib";
 
 class Client extends EventEmitter {
 	public readonly username: string;
@@ -58,20 +59,62 @@ class Client extends EventEmitter {
         process.exit(0)
     }
     
-    sendPacket(packet: DataPacket, priority: Priority = Priority.Normal){
-        let frame = new Frame();
+    sendPackets(priority: Priority | null, ...packets: Array<DataPacket>){
+        if(priority === null) priority = Priority.Normal;
+        const payloads: Array<Buffer> = [];
+
+        for (const packet of packets) {
+            const serialized = packet.serialize()
+            payloads.push(serialized);
+        }
+
+        const framed = Framer.frame(...payloads);
+
+        const deflated =
+        framed.byteLength > 256 && true
+            ? Buffer.from([CompressionMethod.Zlib, ...deflateRawSync(framed)])
+            : true
+                ? Buffer.from([CompressionMethod.None, ...framed])
+                : framed;
+        const encrypted = deflated;
+
+        const payload = Buffer.concat([Buffer.from([GAME_BYTE]), encrypted]);
+
+        const frame = new Frame();
         frame.reliability = Reliability.ReliableOrdered;
         frame.orderChannel = 0;
-        frame.payload = packet.serialize();   
+        frame.payload = payload;  
         this.raknet.queue.sendFrame(frame, priority) 
     }
+
+    sendPacket(packet: DataPacket, priority: Priority = Priority.Normal){
+        const serialized = packet.serialize()
+        const framed = Framer.frame(serialized);
+        const deflated =
+        framed.byteLength > 256 && true
+            ? Buffer.from([CompressionMethod.Zlib, ...deflateRawSync(framed)])
+            : true
+                ? Buffer.from([CompressionMethod.None, ...framed])
+                : framed;
+        const encrypted = deflated;
+        const payload = Buffer.concat([Buffer.from([GAME_BYTE]), encrypted]);
+        
+        const frame = new Frame();
+        frame.reliability = Reliability.ReliableOrdered;
+        frame.orderChannel = 0;
+        frame.payload = payload;  
+        this.raknet.queue.sendFrame(frame, priority) 
+    }
+
 
     handlePackets(){
         this.raknet.on("connect", () => {
             console.log("Connected")
             const networksettings = new RequestNetworkSettingsPacket();
             networksettings.protocol = this.protocol;
-            this.sendPacket(networksettings, Priority.Immediate);
+            const packets: Array<DataPacket> = [];
+            packets[0] = networksettings;
+            this.sendPacket( networksettings, Priority.Immediate);
         })
     }
 }

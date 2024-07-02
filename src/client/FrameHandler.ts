@@ -38,11 +38,7 @@ export class FrameHandler {
 			default: {
 				// Format the packet id to a hex string
 				const id = header.toString(16).length === 1 ? '0' + header.toString(16) : header.toString(16);
-
-				// Log a debug message for unknown packet headers
-				console.debug(
-					`Received unknown online packet 0x${id} from ${this.client.serverAddress}:${this.client.serverPort}!`,
-				);
+				return console.log(`Caught unhandled offline packet 0x${id}!`);		
 				break;
 			}
 
@@ -108,6 +104,7 @@ export class FrameHandler {
 			case Packet.NewIncomingConnection: {
 				console.log('Received NewIncomingConnection packet');
 			}
+			
 		}
     }
 
