@@ -1,8 +1,10 @@
-import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, NewIncomingConnection, Packet, Priority, Reliability } from "@serenityjs/raknet";
+import { Address, BasePacket, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, NewIncomingConnection, Packet, Priority, Reliability } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import { BinaryStream } from "@serenityjs/binarystream";
 import { accessSync } from "fs";
 import { NetworkSettingsPacket } from "@serenityjs/protocol";
+import GamePackets from "../packets/GamePackets";
+import Client from "../Client";
 
 export class FrameHandler {
 	private receivedFrameSequences = new Set<number>();
@@ -44,13 +46,10 @@ export class FrameHandler {
 
 			case 254: {
 				console.log('Received Game packet');
-				if(buffer[2] && buffer[2] == 143){
-					const NetWorkSettings = new NetworkSettingsPacket(buffer);
-					console.log(NetWorkSettings.deserialize())
-					break;
-				}
-	
-				console.log("Unhandeled GAME PACKET! - ",buffer[2])
+				/** @ts-ignore */
+				const packet = new GamePackets[buffer[2]](buffer) as BasePacket;
+				if(Client.debug) console.log(GamePackets[buffer[2]].name)//.deserialize().name)
+				this.client.client.emit(GamePackets[buffer[2]].name, packet.deserialize());
 			}
 			
 			case Packet.ConnectedPing: {
