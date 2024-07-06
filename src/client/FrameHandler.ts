@@ -53,8 +53,7 @@ export class FrameHandler {
 				let decrypted = buffer.subarray(1);
 		
 				if (_client.encryption) {
-					const packetCrypto = new PacketEncryptor(_client.secretKeyBytes);
-					decrypted = packetCrypto.decryptPacket(decrypted);
+					decrypted = _encryptor.decryptPacket(decrypted);
 				}
 
 				const algorithm: CompressionMethod = CompressionMethod[

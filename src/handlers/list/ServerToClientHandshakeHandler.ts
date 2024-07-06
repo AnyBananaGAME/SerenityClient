@@ -4,6 +4,7 @@ import { ClientToServerHandshakePacket } from "../../packets/game/ClientToServer
 import { Priority } from "@serenityjs/raknet";
 import * as JWT from "jsonwebtoken";
 import { createHash, createPublicKey, diffieHellman, KeyExportOptions } from "crypto";
+import { PacketEncryptor } from "../../PacketEncryptor";
 
 const SALT = '🧂'
 const pem:  KeyExportOptions<"pem"> = { format: 'pem', type: 'sec1' };
@@ -33,7 +34,9 @@ class ServerToClientHandshakeHandler extends BaseHandler {
         _client.secretKeyBytes = secretHash.digest()
         const iv = _client.secretKeyBytes.slice(0, 16);
         _client.data.iv = iv;
+        globalThis._encryptor = new PacketEncryptor(_client.secretKeyBytes);
         _client.encryption = true;
+
         const handshake = new ClientToServerHandshakePacket();
         _client.sendPacket(handshake, Priority.Immediate);
     }

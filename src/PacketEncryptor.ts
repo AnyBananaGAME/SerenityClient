@@ -44,6 +44,7 @@ class PacketEncryptor {
     }
 
     encryptPacket(framed: Buffer, priority: Priority = Priority.Normal): Frame {
+        console.log(this.sendCounter)
         let deflated;
         if (framed.byteLength > this.compressionThreshold) {
             deflated = Buffer.from([CompressionMethod.Zlib, ...Zlib.deflateRawSync(framed)]);

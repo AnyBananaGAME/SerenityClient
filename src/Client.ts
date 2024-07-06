@@ -14,6 +14,7 @@ import { PacketEncryptor } from "./PacketEncryptor";
 
 declare global {
     var _client: Client;
+    var _encryptor: PacketEncryptor;
 }
 
 class Client extends EventEmitter {
@@ -136,11 +137,10 @@ class Client extends EventEmitter {
         framed = Framer.frame(serialized);
 
         if(this.encryption){
-            const encryptor = new PacketEncryptor(_client.secretKeyBytes);
-            encryptor.initializeCipher(this.data.iv);
+            _encryptor.initializeCipher(this.data.iv);
         
             if (this.encryption) {
-                const encryptedFrame = encryptor.encryptPacket(framed, priority);
+                const encryptedFrame = _encryptor.encryptPacket(framed, priority);
                 this.raknet.queue.sendFrame(encryptedFrame, priority);
             }
         } else {
