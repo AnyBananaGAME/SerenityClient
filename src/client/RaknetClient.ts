@@ -24,13 +24,13 @@ interface Advertisement {
 	serverPort: number;
 	serverPortv6: number;
 }
-
+export {Advertisement}
 class RakNetClient extends EventEmitter {
   public socket: dgram.Socket;
   public serverAddress: string;
   public serverPort: number;
   public connected: boolean = false;
-  private client: Client;
+  public client: Client;
   public protocol: number = 11;
   public id: bigint;
   private packetHandler: PacketHandler;
@@ -49,7 +49,7 @@ class RakNetClient extends EventEmitter {
 	this.queue = new Queue(this);
 
     setInterval(() => {
-		this.queue.sendFrameQueue();
+	//	this.queue.sendFrameQueue();
 	}, 50);
   }
 
@@ -104,9 +104,11 @@ class RakNetClient extends EventEmitter {
 			this.packetHandler.sendUnconnectedPing();
       });
   }
+  public getFrameHandler() {
+    return this.packetHandler.framehandler;
+  }
 
   send(packet: Buffer) {
-    console.log("Sent a packet " + packet[0])
     this.socket.send(packet, 0, packet.length, this.serverPort, this.serverAddress, (err) => {
       if (err) {
         console.error('Error sending packet:', err);

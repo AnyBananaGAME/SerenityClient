@@ -1,10 +1,14 @@
-import { Address, BasePacket, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, NewIncomingConnection, Packet, Priority, Reliability } from "@serenityjs/raknet";
+import { Address, BasePacket, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Disconnect, Frame, FrameSet, NewIncomingConnection, Packet, Priority, Reliability } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import { BinaryStream } from "@serenityjs/binarystream";
 import { accessSync } from "fs";
-import { NetworkSettingsPacket } from "@serenityjs/protocol";
-import GamePackets from "../packets/GamePackets";
+import { CompressionMethod, Framer, getPacketId, Packets } from "@serenityjs/protocol";
 import Client from "../Client";
+import OhMyNewIncommingConnection from "../packets/raknet/OhMyNewIncommingConnection";
+import * as fs from "fs";
+import { inflateRawSync } from "zlib";
+import * as snappy from "snappyjs";
+import { PacketEncryptor } from "../PacketEncryptor";
 
 export class FrameHandler {
 	private receivedFrameSequences = new Set<number>();
@@ -14,7 +18,7 @@ export class FrameHandler {
 	private inputOrderIndex: Array<number>;
 	private inputOrderingQueue: Map<number, Map<number, Frame>> = new Map();
 	private lastInputSequence = -1;
-
+	public compressionMethod: number = CompressionMethod.None; // No compression right now (Sould be 01 after NetworkSettings Packet)
 
 	constructor(private client: RakNetClient) {
         this.inputOrderIndex = Array.from<number>({ length: 32 }).fill(0);
@@ -25,33 +29,101 @@ export class FrameHandler {
     }
 
 	public handleBatchError(error: Error | unknown, packetID: number){
-		console.info("Error at packet ", packetID)
-		console.error(error)
+		console.info("Error at packet ", packetID);
+		console.error(error);
 	}
 
-	public incomingBatch(buffer: Buffer): void {
+	public async incomingBatch(buffer: Buffer): Promise<void> {
         if (buffer.length <= 0) {
 			console.error('Received an empty buffer!');
 			return;
 		}
+
         const header = (buffer[0] as number);
+		const id = header.toString(16).length === 1 ? '0' + header.toString(16) : header.toString(16);
 		switch (header) {
 			default: {
-				// Format the packet id to a hex string
-				const id = header.toString(16).length === 1 ? '0' + header.toString(16) : header.toString(16);
-				console.log(buffer)	
 				return console.log(`Caught unhandled packet 0x${id}!`);	
 				break;
 			}
 
 			case 254: {
-				console.log('Received Game packet');
-				/** @ts-ignore */
-				const packet = new GamePackets[buffer[2]](buffer) as BasePacket;
-				if(Client.debug) console.log(GamePackets[buffer[2]].name)//.deserialize().name)
-				this.client.client.emit(GamePackets[buffer[2]].name, packet.deserialize());
+				let i = 1;
+				
+				let decrypted = buffer.subarray(1);
+		
+				if (_client.encryption) {
+					const packetCrypto = new PacketEncryptor(_client.secretKeyBytes);
+					decrypted = packetCrypto.decryptPacket(decrypted);
+				}
+
+				const algorithm: CompressionMethod = CompressionMethod[
+					decrypted[0] as number
+				]
+					? decrypted.readUint8()
+					: CompressionMethod.NotPresent;
+	
+				if (algorithm !== CompressionMethod.NotPresent)
+					decrypted = decrypted.subarray(i);
+
+				let inflated: Buffer;
+
+				switch (algorithm) {
+					case CompressionMethod.Zlib: {
+						inflated = inflateRawSync(decrypted);
+						break;
+					}
+					case CompressionMethod.None:
+					case CompressionMethod.NotPresent: {
+						inflated = decrypted;
+						break;
+					}
+					default: {
+						return console.error(
+							`Received invalid compression algorithm !`,
+							CompressionMethod[algorithm]
+						);
+					}
+				}
+						
+				let frames;
+				try {
+					frames = Framer.unframe(inflated);
+				} catch (error) {
+					console.log(error);
+				}
+				if(!frames) return;
+				for (const frame of frames) {
+					const id = getPacketId(frame);
+					const packet = Packets[id];
+					const instance = new packet(frame).deserialize();
+					console.log(instance)
+					this.client.client.emit(Packets[id].name, instance);
+				}
+				return;
 			}
+
+			case Packet.Disconnect: {
+				const packet = new Disconnect(buffer);
+				const des = packet.deserialize();
+				this.client.client.disconnect("raknet-disconnected");
+				break;
+			}
+			case Packet.ConnectedPong: {
+				const pong = new ConnectedPong(buffer);
+				const des = pong.deserialize();
+				const ping = new ConnectedPing();
+				ping.timestamp = des.timestamp;
+
+				const frame = new Frame();
+				frame.reliability = Reliability.Unreliable;
+				frame.orderChannel = 0;
+				frame.payload = ping.serialize();
 			
+				this.client.queue.sendFrame(frame, Priority.Immediate);
+				break;
+			}
+
 			case Packet.ConnectedPing: {
 				const packet = new ConnectedPing(buffer);
 				const deserializedPacket = packet.deserialize();
@@ -76,22 +148,30 @@ export class FrameHandler {
 					console.error('Failed to deserialize IncomingPacket!');
 					return;
 				}
-
-				const packet = new NewIncomingConnection();
-                /** @ts-ignore */
-                packet.serverAddress = new Address(des.address.address, des.address.port, 4);
-                /** @ts-ignore */
-				packet.internalAddress = new Address(this.client.socket.address().address, this.client.socket.address().port, 6)
-
+				/** @ts-ignore */
+				let packet;
+				if(this.client.client.serverName == "PocketMine-MP" || this.client.client.serverName == "bedrock-protocol"){
+					packet = new OhMyNewIncommingConnection();
+					packet.internalAddress = new Array<Address>()
+					for (let i = 0; i < 10; i++) {
+						packet.internalAddress[i] = new Address('0.0.0.0', 0, 4);
+					}
+				} else {
+					packet = new NewIncomingConnection();
+       				/** @ts-ignore */
+					packet.internalAddress = new Address(this.client.socket.address().address, this.client.socket.address().port, 6)
+				}			
+				/** @ts-ignore */
+				packet.serverAddress = new Address(des.address.address, des.address.port, 4);
 				packet.incomingTimestamp = BigInt(Date.now());
-				packet.serverTimestamp = des.timestamp;
+				packet.serverTimestamp = des.timestamp; 
 
+				const date = new Date();
                 try {
                     const frame = new Frame();
 				    frame.reliability = Reliability.ReliableOrdered;
                     frame.orderChannel = 0;
     			    frame.payload = packet.serialize();
-                    console.log(frame)
                     if (!frame.payload) {
 				    	console.error('Failed to serialize the packet!');
 				    	return;
@@ -108,7 +188,7 @@ export class FrameHandler {
 			}
 
 			case Packet.NewIncomingConnection: {
-				console.log('Received NewIncomingConnection packet');
+
 			}
 			
 		}
@@ -118,18 +198,12 @@ export class FrameHandler {
     public handleFragment(frame: Frame) {
 		if (this.fragmentsQueue.has(frame.fragmentId)) {
 			const fragment = this.fragmentsQueue.get(frame.fragmentId);
-
-			// Check if the fragment is null
 			if (!fragment) return;
 
-			// Set the split frame to the fragment
 			fragment.set(frame.fragmentIndex, frame);
 
-			// Check if we have all the fragments
-			// Then we can rebuild the packet
 			if (fragment.size === frame.fragmentSize) {
 				const stream = new BinaryStream();
-				// Loop through the fragments and write them to the stream
 				for (let index = 0; index < fragment.size; index++) {
 					const sframe = fragment.get(index) as Frame;
 					stream.writeBuffer(sframe.payload);
@@ -158,7 +232,6 @@ export class FrameHandler {
 				this.inputHighestSequenceIndex[frame.orderChannel] = 0;
 				this.inputOrderIndex[frame.orderChannel] = frame.orderIndex + 1;
 
-				// Handle the packet
 				try {
 						this.incomingBatch(frame.payload);
 				} catch (error) {
@@ -167,22 +240,16 @@ export class FrameHandler {
 				let index = this.inputOrderIndex[frame.orderChannel] as number;
 				const outOfOrderQueue = this.inputOrderingQueue.get(frame.orderChannel) as Map<number, Frame>;
 				for (; outOfOrderQueue.has(index); index++) {
-					// Get the frame from the queue
 					const frame = outOfOrderQueue.get(index);
-
-					// Check if the frame is null
 					if (!frame) break;
-
-					// Handle the packet and delete it from the queue
 					try {
-								this.incomingBatch(frame.payload);
+						this.incomingBatch(frame.payload);
 					} catch (error) {
 						this.handleBatchError(error, frame.payload[0]);
 					}
 					outOfOrderQueue.delete(index);
 				}
 
-				// Update the queue
 				this.inputOrderingQueue.set(frame.orderChannel, outOfOrderQueue);
 				this.inputOrderIndex[frame.orderChannel] = index;
 			}
@@ -192,7 +259,8 @@ export class FrameHandler {
             unordered.set(frame.orderIndex, frame);
         }  else {
 			try {
-				return this.incomingBatch(frame.payload);
+				this.incomingBatch(frame.payload);
+				return;
 			} catch (error) {
 				this.handleBatchError(error, frame.payload[0]);
 			}
@@ -200,7 +268,6 @@ export class FrameHandler {
     }
 
 	public handleIncomingFrameSet(buffer: Buffer): void {
-        //console.debug("frameset - ", buffer[0])
 		const frameset = new FrameSet(buffer).deserialize();
         if (frameset.sequence < this.lastInputSequence || frameset.sequence === this.lastInputSequence) {
 			console.log(`Received out of order frameset ${frameset.sequence}`);

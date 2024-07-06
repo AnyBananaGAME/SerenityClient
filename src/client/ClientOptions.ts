@@ -4,6 +4,7 @@ type Options = {
     username?: string;
     host?: string;
     port?: number;
+    skinData?: Object | null;
 }
 
 const defaultOptions: Required<Options> = {
@@ -11,7 +12,8 @@ const defaultOptions: Required<Options> = {
     offline: false,
     username: "defaultUser",
     host: "127.0.0.1",
-    port: 19132
+    port: 19132,
+    skinData: null
 };
 
 export { Options, defaultOptions };

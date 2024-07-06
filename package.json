@@ -14,10 +14,17 @@
     "@serenityjs/binarystream": "^2.6.5",
     "@serenityjs/network": "^0.3.5",
     "@serenityjs/protocol": "^0.3.5",
-    "@serenityjs/raknet": "^0.3.5"
+    "@serenityjs/raknet": "^0.3.5",
+    "fast-jwt": "^4.0.1",
+    "prismarine-auth": "^2.5.0",
+    "snappyjs": "^0.7.0"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^20.14.9",
-    "jsonwebtoken": "^9.0.2"
+    "@types/snappyjs": "^0.7.1",
+    "@types/uuid-1345": "^0.99.25",
+    "jsonwebtoken": "^9.0.0",
+    "typescript": "^5.4.5"
   }
 }

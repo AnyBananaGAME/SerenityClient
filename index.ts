@@ -1,5 +1,7 @@
+import "reflect-metadata"
 import { Server } from "@serenityjs/raknet";
 import Client from "./src/Client";
+import { DisconnectPacket, DisconnectReason } from "@serenityjs/protocol";
 
 async function a(){
    /*
@@ -14,6 +16,12 @@ async function a(){
     setTimeout(async () => {
         console.log("[Client] " + new Date().toLocaleDateString())
         const client = new Client({host: "127.0.0.1", port: 19132});
+        client.on(DisconnectPacket.name, (packet: DisconnectPacket) => {
+            console.log(packet);
+            setTimeout(async () => {
+                process.exit()
+            }, 1000)
+        })
         //await client.raknet.ping();
         await client.connect();
     }, 1000)

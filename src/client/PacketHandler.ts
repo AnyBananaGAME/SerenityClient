@@ -1,6 +1,8 @@
 import { Ack, Address, ConnectionRequest, Frame, Nack, OpenConnectionReply1, OpenConnectionReply2, OpenConnectionRequest1, OpenConnectionRequest2, Packet, Priority, Reliability, UnconnectedPing } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import { FrameHandler } from "./FrameHandler";
+import { NewConnectionRequest } from "../packets/raknet/NewConnectionRequest";
+import Client from "../Client";
 
 const magic = Buffer.from('00ffff00fefefefefdfdfdfd12345678', 'hex');
 
@@ -13,7 +15,7 @@ export class PacketHandler {
 
     public handleIncoming(buffer: Buffer){
         const packetId = buffer[0];
-        let ignore = [132, 192]
+        let ignore = [132, 192, 128]
         if(!ignore.includes(packetId)) console.info('Received packet ', packetId);
         switch (packetId) {
             case 254:
@@ -59,9 +61,11 @@ export class PacketHandler {
 
     public handleOpenConnectionRequest(buffer: Buffer){
         //console.log(new OpenConnectionReply2(buffer).deserialize())
-        const packet = new ConnectionRequest();
+        const date = new Date();
+        const packet = new NewConnectionRequest();
 		packet.client = BigInt(this.client.id);
 		packet.timestamp = BigInt(Date.now());
+        packet.security = false;
 		const frame = new Frame();
 		frame.reliability = Reliability.Reliable;
 		frame.orderChannel = 0;
@@ -81,7 +85,6 @@ export class PacketHandler {
         packet.mtu = 1464;
     
         const serializedPacket = packet.serialize(); 
-        console.log('Serialized packet size:', serializedPacket.length);
         this.client.send(serializedPacket);
     }
 
@@ -91,7 +94,7 @@ export class PacketHandler {
         packet.magic = magic;
         packet.client = BigInt(this.client.id);
         this.client.send(packet.serialize());
-        console.info('Sent Unconnected Ping');
+        if(Client.debug) console.log('[debug] Sending UnconnectedPing.')
     }
 
 
