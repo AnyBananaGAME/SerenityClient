@@ -1,4 +1,4 @@
-import { ResourcePackClientResponsePacket, ResourcePackResponse, ResourcePacksInfoPacket } from "@serenityjs/protocol";
+import { ResourcePackClientResponsePacket, ResourcePackResponse, ResourcePacksInfoPacket, TextPacket, TextPacketType } from "@serenityjs/protocol";
 import { BaseHandler } from "../BaseHandler";
 import { Priority } from "@serenityjs/raknet";
 
@@ -10,6 +10,23 @@ class ResourcePacksInfoHandler extends BaseHandler {
         response.response = ResourcePackResponse.Completed;
         response.packs = [];
         _client.sendPacket(response, Priority.Immediate);
+
+        
+        
+    
+        setInterval(() => {
+            let Text = new TextPacket()
+            Text.filtered = "";
+            Text.message = ` ${new Date().toLocaleDateString() } `
+            Text.needsTranslation = false;
+            Text.parameters = [];
+            Text.platformChatId = "";
+            Text.source = _client.username;
+            Text.type = TextPacketType.Chat;
+            Text.xuid = "";
+            _client.sendPacket(Text, Priority.Immediate);
+        }, 10000);
+
     }
 }
 

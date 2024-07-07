@@ -3,6 +3,7 @@ import RakNetClient from "./RaknetClient";
 import { FrameHandler } from "./FrameHandler";
 import { NewConnectionRequest } from "../packets/raknet/NewConnectionRequest";
 import Client from "../Client";
+import Logger from "../utils/Logger";
 
 const magic = Buffer.from('00ffff00fefefefefdfdfdfd12345678', 'hex');
 
@@ -17,6 +18,7 @@ export class PacketHandler {
         const packetId = buffer[0];
         let ignore = [132, 192, 128]
         if(!ignore.includes(packetId)) console.info('Received packet ', packetId);
+
         switch (packetId) {
             case 254:
                 process.exit(0);

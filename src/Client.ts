@@ -49,6 +49,7 @@ class Client extends EventEmitter {
     public encryption: boolean = false;
     public compressionThreshold: number = 1;
 
+    public runtimeEntityId: bigint = 0n;
 
     constructor(options: Options = {}) {
         super();

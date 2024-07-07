@@ -49,8 +49,9 @@ export class FrameHandler {
 			}
 
 			case 254: {
+				Logger.debug("Watafak")
 				let i = 1;
-				
+
 				let decrypted = buffer.subarray(1);
 		
 				if (_client.encryption) {
@@ -101,6 +102,7 @@ export class FrameHandler {
 						Logger.warn("Packet with ID " + id + " not found");
 						break;
 					}
+					Logger.debug(packet.name)
 					const instance = new packet(frame).deserialize();
 					let ignoreDebugPackets = [
 						LevelChunkPacket.name,
@@ -233,10 +235,21 @@ export class FrameHandler {
     }
 
     public handleFrame(frame: Frame): void {
-        //console.debug("handleFrame")
+
 		if (frame.isFragmented()) return this.handleFragment(frame);
 		if (frame.isSequenced()) {
-        } else if (frame.isOrdered()) {
+			if (
+				frame.sequenceIndex <
+					(this.inputHighestSequenceIndex[frame.orderChannel] as number) ||
+				frame.orderIndex < (this.inputOrderIndex[frame.orderChannel] as number)
+			) {
+			return Logger.warn(`Recieved out of order frame ${frame.sequenceIndex}`)
+			}
+			this.inputHighestSequenceIndex[frame.orderChannel] =
+			frame.sequenceIndex + 1;
+			this.incomingBatch(frame.payload);
+			return;
+		} else if (frame.isOrdered()) {
             if (frame.orderIndex === this.inputOrderIndex[frame.orderChannel]) {
 				this.inputHighestSequenceIndex[frame.orderChannel] = 0;
 				this.inputOrderIndex[frame.orderChannel] = frame.orderIndex + 1;
@@ -261,19 +274,24 @@ export class FrameHandler {
 
 				this.inputOrderingQueue.set(frame.orderChannel, outOfOrderQueue);
 				this.inputOrderIndex[frame.orderChannel] = index;
+			}  else if (
+				frame.orderIndex > (this.inputOrderIndex[frame.orderChannel] as number)
+			) {
+				const unordered = this.inputOrderingQueue.get(frame.orderChannel);
+				if (!unordered) return;
+				unordered.set(frame.orderIndex, frame);
+			} else {
+
 			}
-        } else if (frame.orderIndex > (this.inputOrderIndex[frame.orderChannel] as number)) {
-            const unordered = this.inputOrderingQueue.get(frame.orderChannel);
-            if (!unordered) return;
-            unordered.set(frame.orderIndex, frame);
-        }  else {
+
+        } else {
 			try {
 				this.incomingBatch(frame.payload);
 				return;
 			} catch (error) {
 				this.handleBatchError(error, frame.payload[0]);
 			}
-        }
+		}
     }
 
 	public handleIncomingFrameSet(buffer: Buffer): void {
@@ -283,6 +301,7 @@ export class FrameHandler {
 		}
         this.receivedFrameSequences.add(frameset.sequence);
         const diff = frameset.sequence - this.lastInputSequence;
+
         if (diff !== 1) {
 			for (let index = this.lastInputSequence + 1; index < frameset.sequence; index++) {
 				if (!this.receivedFrameSequences.has(index)) {
