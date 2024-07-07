@@ -14,6 +14,10 @@ type LoginData = {
     clientIdentityChain: string;
     clientUserChain: string;
 }
+
+type Encryptions = {
+    compressionLevel: number;
+}
 const PUBLIC_KEY = 'MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECRXueJeTDqNRRgJi/vlRufByu/2G0i2Ebt6YMar5QX/R0DIIyrJMcUpruK4QveTfJSTp3Shlq4Gk34cD/4GUWwkv0DVuzeuB+tXija7HBxii03NHDbPAD0AKnLr2wdAp';
 const algorithm = "ES384";
 const curve = 'secp384r1'
@@ -24,11 +28,13 @@ class ClientData {
     public loginData: LoginData;
     private client: Client;
     public iv: Buffer = Buffer.alloc(0);
-
+    public encryption: Encryptions;
     constructor(client: Client){
         this.client = client;
         this.loginData = this.prepareLoginData();
-       
+        this.encryption = {
+            compressionLevel: 7
+        }
     }
 
 

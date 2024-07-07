@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "bun ./build.js && node ./dist/index.js",
+    "build": "tsc",
     "dev": "tsc && node ./dist/index.js"
   },
   "keywords": [],
@@ -12,12 +13,20 @@
   "license": "ISC",
   "dependencies": {
     "@serenityjs/binarystream": "^2.6.5",
+    "@serenityjs/logger": "^0.3.6",
     "@serenityjs/network": "^0.3.5",
     "@serenityjs/protocol": "^0.3.5",
     "@serenityjs/raknet": "^0.3.5",
+    "@swc/cli": "^0.4.0",
+    "@swc/core": "^1.6.13",
+    "@swc/helpers": "^0.5.11",
+    "@swc/jest": "^0.2.36",
+    "chalk": "^4.1.2",
     "fast-jwt": "^4.0.1",
     "prismarine-auth": "^2.5.0",
-    "snappyjs": "^0.7.0"
+    "snappyjs": "^0.7.0",
+    "swc-loader": "^0.2.6",
+    "ts-node": "^10.9.2"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.0",

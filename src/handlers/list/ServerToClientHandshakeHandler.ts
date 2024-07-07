@@ -4,7 +4,7 @@ import { ClientToServerHandshakePacket } from "../../packets/game/ClientToServer
 import { Priority } from "@serenityjs/raknet";
 import * as JWT from "jsonwebtoken";
 import { createHash, createPublicKey, diffieHellman, KeyExportOptions } from "crypto";
-import { PacketEncryptor } from "../../PacketEncryptor";
+import { PacketEncryptor } from "../../packets/PacketEncryptor";
 
 const SALT = '🧂'
 const pem:  KeyExportOptions<"pem"> = { format: 'pem', type: 'sec1' };

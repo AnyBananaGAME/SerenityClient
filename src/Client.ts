@@ -10,7 +10,7 @@ import { deflateRawSync } from "zlib";
 import { authenticate } from "./client/auth/Auth";
 import { PacketHandler } from "./handlers/index";
 import { ClientData } from "./client/ClientData";
-import { PacketEncryptor } from "./PacketEncryptor";
+import { PacketEncryptor } from "./packets/PacketEncryptor";
 
 declare global {
     var _client: Client;
@@ -48,6 +48,7 @@ class Client extends EventEmitter {
     public data: ClientData;
     public encryption: boolean = false;
     public compressionThreshold: number = 1;
+
 
     constructor(options: Options = {}) {
         super();
@@ -136,13 +137,9 @@ class Client extends EventEmitter {
         let framed = Buffer.alloc(0)
         framed = Framer.frame(serialized);
 
-        if(this.encryption){
-            _encryptor.initializeCipher(this.data.iv);
-        
-            if (this.encryption) {
-                const encryptedFrame = _encryptor.encryptPacket(framed, priority);
-                this.raknet.queue.sendFrame(encryptedFrame, priority);
-            }
+        if(this.encryption){        
+            const encryptedFrame = _encryptor.encryptPacket(framed, priority);
+            this.raknet.queue.sendFrame(encryptedFrame, priority);
         } else {
             let payload;
             if (!this.iOiiO) {

@@ -12,7 +12,7 @@ class PacketEncryptor {
     public cipher: crypto.Cipher | null;
     public decipher: crypto.Decipher | null;
 
-    constructor(secretKey: Buffer, compressionThreshold = 256) {
+    constructor(secretKey: Buffer, compressionThreshold = 1) {
         this.secretKeyBytes = Buffer.from(secretKey);
         this.compressionThreshold = compressionThreshold;
         this.sendCounter = 0n;
@@ -25,17 +25,27 @@ class PacketEncryptor {
     }
 
     initializeCipher(iv: Buffer) {
-        this.cipher = crypto.createCipheriv('aes-256-gcm', this.secretKeyBytes, iv.slice(0, 12));
+        let cipher = this.createCipher(this.secretKeyBytes, iv.slice(0, 12), 'aes-256-gcm') 
+        if (!cipher) {
+            throw new Error("Cipher not initialized");
+        }
+        this.cipher = cipher;
     }
-
+    
     initializeDecipher(iv: Buffer) {
-        this.decipher = crypto.createDecipheriv('aes-256-gcm', this.secretKeyBytes, iv.slice(0, 12));
+        this.decipher = crypto.createDecipheriv('aes-256-ctr', this.secretKeyBytes, Buffer.concat([iv.slice(0, 12), Buffer.from([0, 0, 0, 2])]));
     }
-
+    
+    public createCipher (secret: Buffer, initialValue: Buffer, cipherAlgorithm: string) {
+        if (crypto.getCiphers().includes(cipherAlgorithm)) {
+          return crypto.createCipheriv(cipherAlgorithm, secret, initialValue)
+        }
+    }
+    
     computeCheckSum(packetPlaintext: Buffer, counter: bigint) {
         const digest = crypto.createHash('sha256');
         const counterBuffer = Buffer.alloc(8);
-        counterBuffer.writeBigInt64LE(counter, 0);
+        counterBuffer.writeBigInt64LE(counter, 0);  
         digest.update(counterBuffer);
         digest.update(packetPlaintext);
         digest.update(this.secretKeyBytes);
@@ -43,35 +53,37 @@ class PacketEncryptor {
         return hash.slice(0, 8);
     }
 
-    encryptPacket(framed: Buffer, priority: Priority = Priority.Normal): Frame {
-        console.log(this.sendCounter)
+    encryptPacket(framed: Buffer, priority: Priority = Priority.Normal): Frame {  
         let deflated;
         if (framed.byteLength > this.compressionThreshold) {
             deflated = Buffer.from([CompressionMethod.Zlib, ...Zlib.deflateRawSync(framed)]);
         } else {
             deflated = Buffer.from([CompressionMethod.None, ...framed]);
         }
-
+    
         const checksum = this.computeCheckSum(deflated, this.sendCounter);
+    
         const packetToEncrypt = Buffer.concat([deflated, checksum]);
-
-        this.sendCounter++;
-
+    
         if (!this.cipher) {
             throw new Error("Cipher not initialized");
         }
         const encryptedPayload = this.cipher.update(packetToEncrypt);
+    
+        this.sendCounter++;
+    
         const payload = Buffer.concat([Buffer.from([GAME_BYTE]), encryptedPayload]);
-
+    
         const frame = new Frame();
         frame.reliability = Reliability.ReliableOrdered;
         frame.orderChannel = 0;
         frame.payload = payload;
-
+    
         return frame;
     }
 
     decryptPacket(encryptedPayload: Buffer): Buffer {
+
         if (!this.decipher) {
             throw new Error("Decipher not initialized");
         }
@@ -90,6 +102,5 @@ class PacketEncryptor {
         return packet;
     }
 }
-
 
 export { PacketEncryptor }

@@ -2,13 +2,14 @@ import { Address, BasePacket, ConnectedPing, ConnectedPong, ConnectionRequestAcc
 import RakNetClient from "./RaknetClient";
 import { BinaryStream } from "@serenityjs/binarystream";
 import { accessSync } from "fs";
-import { CompressionMethod, Framer, getPacketId, Packets } from "@serenityjs/protocol";
+import { CompressionMethod, Framer, getPacketId, LevelChunkPacket, Packets, StartGamePacket } from "@serenityjs/protocol";
 import Client from "../Client";
 import OhMyNewIncommingConnection from "../packets/raknet/OhMyNewIncommingConnection";
 import * as fs from "fs";
 import { inflateRawSync } from "zlib";
 import * as snappy from "snappyjs";
-import { PacketEncryptor } from "../PacketEncryptor";
+import { PacketEncryptor } from "../packets/PacketEncryptor";
+import Logger from "../utils/Logger";
 
 export class FrameHandler {
 	private receivedFrameSequences = new Set<number>();
@@ -89,14 +90,23 @@ export class FrameHandler {
 				try {
 					frames = Framer.unframe(inflated);
 				} catch (error) {
+					console.log("\n\n\nCAN NOT UNFRAME\n\n\n")
 					console.log(error);
 				}
 				if(!frames) return;
 				for (const frame of frames) {
 					const id = getPacketId(frame);
 					const packet = Packets[id];
+					if(!packet){
+						Logger.warn("Packet with ID " + id + " not found");
+						break;
+					}
 					const instance = new packet(frame).deserialize();
-					console.log(instance)
+					let ignoreDebugPackets = [
+						LevelChunkPacket.name,
+						StartGamePacket.name
+					]
+					if(!ignoreDebugPackets.includes(packet.name)) console.log(instance)
 					this.client.client.emit(Packets[id].name, instance);
 				}
 				return;
@@ -232,7 +242,7 @@ export class FrameHandler {
 				this.inputOrderIndex[frame.orderChannel] = frame.orderIndex + 1;
 
 				try {
-						this.incomingBatch(frame.payload);
+					this.incomingBatch(frame.payload);
 				} catch (error) {
 					this.handleBatchError(error, frame.payload[0]);
 				}

@@ -9,6 +9,9 @@ class PacketHandler {
     private handlersDir: string;
 
     constructor(client: Client, handlersDir: string = __dirname+ '/list') {
+        if(!handlersDir.endsWith("handlers/list")){
+            handlersDir = path.join(process.cwd(), "src", "handlers", "list");
+        }
         this.client = client;
         this.handlers = new Map();
         this.handlersDir = handlersDir;
