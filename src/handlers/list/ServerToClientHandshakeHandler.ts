@@ -19,12 +19,13 @@ class ServerToClientHandshakeHandler extends BaseHandler {
         const { clientX509, ecdhKeyPair } = _client.data.loginData;
         let jwt = packet.token;
 
-        const [header, payload] = jwt.split('.').map(k => Buffer.from(k, 'base64'))
+        const [header, payload] = jwt.split('.').map(k => Buffer.from(k, 'base64'));
+
         const head = JSON.parse(String(header))
         const body = JSON.parse(String(payload))
-        //@ts-ignore
-        const pubKeyDer = createPublicKey({ key: Buffer.from(head.x5u, 'base64'), ...der })
-        _client.sharedSecret = diffieHellman({ privateKey: ecdhKeyPair.privateKey, publicKey: pubKeyDer })
+
+        const pubKeyDer = createPublicKey({ key: Buffer.from(head.x5u, 'base64'), type: "spki", format: "der" })
+        _client.sharedSecret = diffieHellman({ privateKey: _client.data.loginData.ecdhKeyPair.privateKey, publicKey: pubKeyDer })
 
         const salt = Buffer.from(body.salt, 'base64')
         const secretHash = createHash('sha256')
@@ -32,7 +33,8 @@ class ServerToClientHandshakeHandler extends BaseHandler {
         secretHash.update(_client.sharedSecret)
 
         _client.secretKeyBytes = secretHash.digest()
-        const iv = _client.secretKeyBytes.slice(0, 16);
+
+        const iv = _client.secretKeyBytes.slice(0, 16)
         _client.data.iv = iv;
         globalThis._encryptor = new PacketEncryptor(_client.secretKeyBytes);
         _client.encryption = true;
