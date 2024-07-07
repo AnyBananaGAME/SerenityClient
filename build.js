@@ -43,7 +43,6 @@ const compileDirectory = async (srcDir, outDir) => {
       if (!fs.existsSync(outPath)) mkdirSyncRecursive(outPath);
       await compileDirectory(fullPath, outPath);
     } else {
-      // Skip JSON files
       if (path.extname(file) === ".json") {
         mkdirSyncRecursive(path.dirname(outPath)); 
         fs.copyFileSync(fullPath, outPath);
