@@ -19,9 +19,6 @@ declare global {
 
 class Client extends EventEmitter {
     public static debug: boolean = true;
-    public readonly username: string;
-    public readonly xuid: string;
-    public readonly uuid: string;
     public status: PlayerStatus = PlayerStatus.Connecting;
     public readonly sendQ = [];
     public readonly options: Options = defaultOptions;
@@ -29,12 +26,6 @@ class Client extends EventEmitter {
     public readonly protocol: number = 685;
     public packetHandler: PacketHandler;
 
-    /** @ts-ignore */
-    public publicKeyDER: string | Buffer;
-    /** @ts-ignore */
-    public privateKeyPEM: string | Buffer;
-    /** @ts-ignore */
-    public ecdhKeyPair: KeyPairKeyObjectResult;
     /** @ts-ignore */
     public secretKeyBytes: Buffer;
     /** @ts-ignore */
@@ -49,7 +40,12 @@ class Client extends EventEmitter {
     public encryption: boolean = false;
     public compressionThreshold: number = 1;
 
-    public runtimeEntityId: bigint = 0n;
+
+
+    public username: string;
+    public xuid: string;
+    public uuid: string;
+    public runtimeEntityId: bigint;
 
     constructor(options: Options = {}) {
         super();
@@ -62,11 +58,13 @@ class Client extends EventEmitter {
         this.raknet = new RakNetClient(this.options.host, this.options.port, this);
         this.packetHandler = new PacketHandler(this);
 
+        this.handlePackets();
+
         this.username = "";
         this.xuid = "";
         this.uuid = "";
-        this.handlePackets();
-
+        this.runtimeEntityId = 0n;
+        
 
     }
 
@@ -83,10 +81,10 @@ class Client extends EventEmitter {
             })
         }
         this.on("session", async () => {
-            const ping = await this.ping() as Advertisement;
-            this.serverName = ping.serverName;
-            console.log(this.serverName)
-            this.raknet.connect();
+            this.raknet.connect((ping: Advertisement) => {
+                this.serverName = ping.serverName;
+                console.log(this.serverName)
+            });
         })
     }
 
