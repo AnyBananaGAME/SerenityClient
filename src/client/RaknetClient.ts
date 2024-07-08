@@ -25,7 +25,7 @@ interface Advertisement {
 	serverPortv6: number;
 }
 export {Advertisement}
-class RakNetClient extends EventEmitter {
+export default  class RakNetClient extends EventEmitter {
   public socket: dgram.Socket;
   public serverAddress: string;
   public serverPort: number;
@@ -53,10 +53,11 @@ class RakNetClient extends EventEmitter {
 	}, 50);
   }
 
-  async connect() {
+  async connect(callback: (ping: Advertisement) => void) {
     console.log('RakNet client connecting to', this.serverAddress, 'on port', this.serverPort);
-    await this.ping();
-    await this.socket.on('message', (msg, rinfo) => { this.packetHandler.handleIncoming(msg) });
+	const ping = await this.ping();
+	callback(ping)
+	await this.socket.on('message', (msg, rinfo) => { this.packetHandler.handleIncoming(msg) });
     await this.packetHandler.sendConnectionPacket();
   }
 
@@ -64,7 +65,7 @@ class RakNetClient extends EventEmitter {
     this.socket.close();
   }
 
-  public async ping(){
+  public async ping(): Promise<Advertisement>{
     return new Promise((resolve, reject) => {
 		  const timeout = setTimeout(() => {
 				this.socket.removeListener('message', messageHandler);
@@ -116,7 +117,3 @@ class RakNetClient extends EventEmitter {
     });
   }
 }
-
-
-
-export default RakNetClient;
