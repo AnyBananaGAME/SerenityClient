@@ -1,317 +1,267 @@
-import { Address, BasePacket, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Disconnect, Frame, FrameSet, NewIncomingConnection, Packet, Priority, Reliability } from "@serenityjs/raknet";
+import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, Packet, Priority, Reliability } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
-import { BinaryStream } from "@serenityjs/binarystream";
-import { accessSync } from "fs";
-import { CompressionMethod, Framer, getPacketId, LevelChunkPacket, Packets, StartGamePacket } from "@serenityjs/protocol";
-import Client from "../Client";
 import OhMyNewIncommingConnection from "../packets/raknet/OhMyNewIncommingConnection";
-import * as fs from "fs";
+import { GAME_BYTE } from "@serenityjs/network";
+import { CompressionMethod, Framer, getPacketId, LevelChunkPacket, Packets, SetEntityDataPacket, StartGamePacket } from "@serenityjs/protocol";
 import { inflateRawSync } from "zlib";
-import * as snappy from "snappyjs";
-import { PacketEncryptor } from "../packets/PacketEncryptor";
 import Logger from "../utils/Logger";
+import { BinaryStream } from "@serenityjs/binarystream";
 
 export class FrameHandler {
-	private receivedFrameSequences = new Set<number>();
-	private lostFrameSequences = new Set<number>();
-	private inputHighestSequenceIndex: Array<number>;
-	private fragmentsQueue: Map<number, Map<number, Frame>> = new Map();
-	private inputOrderIndex: Array<number>;
-	private inputOrderingQueue: Map<number, Map<number, Frame>> = new Map();
-	private lastInputSequence = -1;
-	public compressionMethod: number = CompressionMethod.None; // No compression right now (Sould be 01 after NetworkSettings Packet)
+    private fragmentedPackets: Map<number, Map<number, Frame>> = new Map();
+    private reliablePackets: Map<number, Frame> = new Map();
+    private orderedPackets: Map<number, Map<number, Frame>> = new Map();
+    private highestSequence: number = -1;
+    private lastInputSequence: number = -1;
+    private receivedFrameSequences: Set<number> = new Set();
+    private lostFrameSequences: Set<number> = new Set();
+    private inputHighestSequenceIndex: number[] = new Array(32).fill(0);
+    private inputOrderIndex: number[] = new Array(32).fill(0);
 
-	constructor(private client: RakNetClient) {
-        this.inputOrderIndex = Array.from<number>({ length: 32 }).fill(0);
-		this.inputHighestSequenceIndex = Array.from<number>({ length: 32 }).fill(0);
-		for (let index = 0; index < 32; index++) {
-			this.inputOrderingQueue.set(index, new Map());
-		}
+    private raknet: RakNetClient;
+
+    constructor(raknet: RakNetClient) {
+        this.raknet = raknet;
     }
 
-	public handleBatchError(error: Error | unknown, packetID: number){
-		console.info("Error at packet ", packetID);
-		console.error(error);
-	}
+    handleFrameSet(buffer: Buffer): void {
+        const frameSet = new FrameSet(buffer).deserialize();
+        if (frameSet.sequence <= this.highestSequence) {
+            Logger.debug(`Ignoring old or duplicate FrameSet: ${frameSet.sequence}`);
+            return;
+        }
 
-	public async incomingBatch(buffer: Buffer): Promise<void> {
-        if (buffer.length <= 0) {
-			console.error('Received an empty buffer!');
-			return;
-		}
-
-        const header = (buffer[0] as number);
-		const id = header.toString(16).length === 1 ? '0' + header.toString(16) : header.toString(16);
-		switch (header) {
-			default: {
-				return console.log(`Caught unhandled packet 0x${id}!`);	
-				break;
-			}
-
-			case 254: {
-				Logger.debug("Watafak")
-				let i = 1;
-
-				let decrypted = buffer.subarray(1);
-		
-				if (_client.encryption) {
-					decrypted = _encryptor.decryptPacket(decrypted);
-				}
-
-				const algorithm: CompressionMethod = CompressionMethod[
-					decrypted[0] as number
-				]
-					? decrypted.readUint8()
-					: CompressionMethod.NotPresent;
-	
-				if (algorithm !== CompressionMethod.NotPresent)
-					decrypted = decrypted.subarray(i);
-
-				let inflated: Buffer;
-
-				switch (algorithm) {
-					case CompressionMethod.Zlib: {
-						inflated = inflateRawSync(decrypted);
-						break;
-					}
-					case CompressionMethod.None:
-					case CompressionMethod.NotPresent: {
-						inflated = decrypted;
-						break;
-					}
-					default: {
-						return console.error(
-							`Received invalid compression algorithm !`,
-							CompressionMethod[algorithm]
-						);
-					}
-				}
-						
-				let frames;
-				try {
-					frames = Framer.unframe(inflated);
-				} catch (error) {
-					console.log("\n\n\nCAN NOT UNFRAME\n\n\n")
-					console.log(error);
-				}
-				if(!frames) return;
-				for (const frame of frames) {
-					const id = getPacketId(frame);
-					const packet = Packets[id];
-					if(!packet){
-						Logger.warn("Packet with ID " + id + " not found");
-						break;
-					}
-					Logger.debug(packet.name)
-					const instance = new packet(frame).deserialize();
-					let ignoreDebugPackets = [
-						LevelChunkPacket.name,
-						StartGamePacket.name
-					]
-					if(!ignoreDebugPackets.includes(packet.name)) console.log(instance)
-					this.client.client.emit(Packets[id].name, instance);
-				}
-				return;
-			}
-
-			case Packet.Disconnect: {
-				const packet = new Disconnect(buffer);
-				const des = packet.deserialize();
-				this.client.client.disconnect("raknet-disconnected");
-				break;
-			}
-			case Packet.ConnectedPong: {
-				const pong = new ConnectedPong(buffer);
-				const des = pong.deserialize();
-				const ping = new ConnectedPing();
-				ping.timestamp = des.timestamp;
-
-				const frame = new Frame();
-				frame.reliability = Reliability.Unreliable;
-				frame.orderChannel = 0;
-				frame.payload = ping.serialize();
-			
-				this.client.queue.sendFrame(frame, Priority.Immediate);
-				break;
-			}
-
-			case Packet.ConnectedPing: {
-				const packet = new ConnectedPing(buffer);
-				const deserializedPacket = packet.deserialize();
-				
-				const pong = new ConnectedPong();
-				pong.pingTimestamp = deserializedPacket.timestamp;
-				pong.timestamp = BigInt(Date.now());
-
-				const frame = new Frame();
-				frame.reliability = Reliability.Unreliable;
-				frame.orderChannel = 0;
-				frame.payload = pong.serialize();
-			
-				this.client.queue.sendFrame(frame, Priority.Immediate);
-				break;
-			}
-
-			case Packet.ConnectionRequestAccepted: {
-				const IncomingPacket = new ConnectionRequestAccepted(buffer);
-				const des = IncomingPacket.deserialize();
-				if (!des) {
-					console.error('Failed to deserialize IncomingPacket!');
-					return;
-				}
-				/** @ts-ignore */
-				let packet;
-				if(this.client.client.serverName == "PocketMine-MP" || this.client.client.serverName == "bedrock-protocol"){
-					packet = new OhMyNewIncommingConnection();
-					packet.internalAddress = new Array<Address>()
-					for (let i = 0; i < 10; i++) {
-						packet.internalAddress[i] = new Address('0.0.0.0', 0, 4);
-					}
-				} else {
-					packet = new NewIncomingConnection();
-       				/** @ts-ignore */
-					packet.internalAddress = new Address(this.client.socket.address().address, this.client.socket.address().port, 6)
-				}			
-				/** @ts-ignore */
-				packet.serverAddress = new Address(des.address.address, des.address.port, 4);
-				packet.incomingTimestamp = BigInt(Date.now());
-				packet.serverTimestamp = des.timestamp; 
-
-				const date = new Date();
-                try {
-                    const frame = new Frame();
-				    frame.reliability = Reliability.ReliableOrdered;
-                    frame.orderChannel = 0;
-    			    frame.payload = packet.serialize();
-                    if (!frame.payload) {
-				    	console.error('Failed to serialize the packet!');
-				    	return;
-				    }
-
-				    this.client.queue.sendFrame(frame, Priority.Immediate);
-					void this.client.emit("connect", this);
-                } catch(error){
-                        console.log("Error in Frame Serialise")
-                        console.error(error)
-				        break;
-                }
-                break;
-			}
-
-			case Packet.NewIncomingConnection: {
-
-			}
-			
-		}
-    }
-
-
-    public handleFragment(frame: Frame) {
-		if (this.fragmentsQueue.has(frame.fragmentId)) {
-			const fragment = this.fragmentsQueue.get(frame.fragmentId);
-			if (!fragment) return;
-
-			fragment.set(frame.fragmentIndex, frame);
-
-			if (fragment.size === frame.fragmentSize) {
-				const stream = new BinaryStream();
-				for (let index = 0; index < fragment.size; index++) {
-					const sframe = fragment.get(index) as Frame;
-					stream.writeBuffer(sframe.payload);
-				}
-            	const nframe = new Frame();
-				nframe.reliability = frame.reliability;
-				nframe.reliableIndex = frame.reliableIndex;
-				nframe.sequenceIndex = frame.sequenceIndex;
-				nframe.orderIndex = frame.orderIndex;
-				nframe.orderChannel = frame.orderChannel;
-				nframe.payload = stream.getBuffer();
-				this.fragmentsQueue.delete(frame.fragmentId);
-				return this.handleFrame(nframe);
-			}
-		} else {
-			this.fragmentsQueue.set(frame.fragmentId, new Map([[frame.fragmentIndex, frame]]));
-		}
-    }
-
-    public handleFrame(frame: Frame): void {
-
-		if (frame.isFragmented()) return this.handleFragment(frame);
-		if (frame.isSequenced()) {
-			if (
-				frame.sequenceIndex <
-					(this.inputHighestSequenceIndex[frame.orderChannel] as number) ||
-				frame.orderIndex < (this.inputOrderIndex[frame.orderChannel] as number)
-			) {
-			return Logger.warn(`Recieved out of order frame ${frame.sequenceIndex}`)
-			}
-			this.inputHighestSequenceIndex[frame.orderChannel] =
-			frame.sequenceIndex + 1;
-			this.incomingBatch(frame.payload);
-			return;
-		} else if (frame.isOrdered()) {
-            if (frame.orderIndex === this.inputOrderIndex[frame.orderChannel]) {
-				this.inputHighestSequenceIndex[frame.orderChannel] = 0;
-				this.inputOrderIndex[frame.orderChannel] = frame.orderIndex + 1;
-
-				try {
-					this.incomingBatch(frame.payload);
-				} catch (error) {
-					this.handleBatchError(error, frame.payload[0]);
-				}
-				let index = this.inputOrderIndex[frame.orderChannel] as number;
-				const outOfOrderQueue = this.inputOrderingQueue.get(frame.orderChannel) as Map<number, Frame>;
-				for (; outOfOrderQueue.has(index); index++) {
-					const frame = outOfOrderQueue.get(index);
-					if (!frame) break;
-					try {
-						this.incomingBatch(frame.payload);
-					} catch (error) {
-						this.handleBatchError(error, frame.payload[0]);
-					}
-					outOfOrderQueue.delete(index);
-				}
-
-				this.inputOrderingQueue.set(frame.orderChannel, outOfOrderQueue);
-				this.inputOrderIndex[frame.orderChannel] = index;
-			}  else if (
-				frame.orderIndex > (this.inputOrderIndex[frame.orderChannel] as number)
-			) {
-				const unordered = this.inputOrderingQueue.get(frame.orderChannel);
-				if (!unordered) return;
-				unordered.set(frame.orderIndex, frame);
-			} else {
-
-			}
-
-        } else {
-			try {
-				this.incomingBatch(frame.payload);
-				return;
-			} catch (error) {
-				this.handleBatchError(error, frame.payload[0]);
-			}
-		}
-    }
-
-	public handleIncomingFrameSet(buffer: Buffer): void {
-		const frameset = new FrameSet(buffer).deserialize();
-        if (frameset.sequence < this.lastInputSequence || frameset.sequence === this.lastInputSequence) {
-			console.log(`Received out of order frameset ${frameset.sequence}`);
-		}
-        this.receivedFrameSequences.add(frameset.sequence);
-        const diff = frameset.sequence - this.lastInputSequence;
+        this.receivedFrameSequences.add(frameSet.sequence);
+        const diff = frameSet.sequence - this.lastInputSequence;
 
         if (diff !== 1) {
-			for (let index = this.lastInputSequence + 1; index < frameset.sequence; index++) {
-				if (!this.receivedFrameSequences.has(index)) {
-					this.lostFrameSequences.add(index);
-				}
-			}
-		}
-        this.lastInputSequence = frameset.sequence;
-		for (const frame of frameset.frames) {
-			this.handleFrame(frame);
-		}
+            for (let index = this.lastInputSequence + 1; index < frameSet.sequence; index++) {
+                if (!this.receivedFrameSequences.has(index)) {
+                    this.lostFrameSequences.add(index);
+                }
+            }
+        }
+
+        this.lastInputSequence = frameSet.sequence;
+        this.highestSequence = frameSet.sequence;
+
+        for (const frame of frameSet.frames) {
+            try {
+                this.handleFrame(frame);
+            } catch (error) {
+                Logger.error(`Error processing frame: ${error}`);
+            }
+        }
+    }
+
+    private handleFrame(frame: Frame): void {
+        if (frame.isFragmented()) {
+            this.handleFragmentedFrame(frame);
+        } else if (frame.isSequenced()) {
+            this.handleSequencedFrame(frame);
+        } else if (frame.isOrdered()) {
+            this.handleOrderedFrame(frame);
+        } else if (frame.isReliable()) {
+            this.handleReliableFrame(frame);
+        } else {
+            this.processFrame(frame);
+        }
+    }
+
+    private handleFragmentedFrame(frame: Frame): void {
+        if (!this.fragmentedPackets.has(frame.fragmentId)) {
+            this.fragmentedPackets.set(frame.fragmentId, new Map());
+        }
+        const fragments = this.fragmentedPackets.get(frame.fragmentId)!;
+        fragments.set(frame.fragmentIndex, frame);
+
+        if (fragments.size === frame.fragmentSize) {
+            const stream = new BinaryStream();
+            for (let index = 0; index < fragments.size; index++) {
+                const fragment = fragments.get(index)!;
+                stream.writeBuffer(fragment.payload);
+            }
+            const reassembledFrame = new Frame();
+            Object.assign(reassembledFrame, frame);
+            reassembledFrame.payload = stream.getBuffer();
+            reassembledFrame.fragmentSize = 0;
+            this.fragmentedPackets.delete(frame.fragmentId);
+            this.handleFrame(reassembledFrame);
+        }
+    }
+
+    private handleSequencedFrame(frame: Frame): void {
+        if (
+            frame.sequenceIndex < this.inputHighestSequenceIndex[frame.orderChannel] ||
+            frame.orderIndex < this.inputOrderIndex[frame.orderChannel]
+        ) {
+            return Logger.warn(`Received out of order frame ${frame.sequenceIndex}`);
+        }
+        this.inputHighestSequenceIndex[frame.orderChannel] = frame.sequenceIndex + 1;
+        this.processFrame(frame);
+    }
+
+    private handleOrderedFrame(frame: Frame): void {
+        if (frame.orderIndex === this.inputOrderIndex[frame.orderChannel]) {
+            this.inputHighestSequenceIndex[frame.orderChannel] = 0;
+            this.inputOrderIndex[frame.orderChannel] = frame.orderIndex + 1;
+            this.processFrame(frame);
+
+            let index = this.inputOrderIndex[frame.orderChannel];
+            const outOfOrderQueue = this.orderedPackets.get(frame.orderChannel) || new Map();
+            while (outOfOrderQueue.has(index)) {
+                const nextFrame = outOfOrderQueue.get(index)!;
+                this.processFrame(nextFrame);
+                outOfOrderQueue.delete(index);
+                index++;
+            }
+            this.orderedPackets.set(frame.orderChannel, outOfOrderQueue);
+            this.inputOrderIndex[frame.orderChannel] = index;
+        } else if (frame.orderIndex > this.inputOrderIndex[frame.orderChannel]) {
+            const outOfOrderQueue = this.orderedPackets.get(frame.orderChannel) || new Map();
+            outOfOrderQueue.set(frame.orderIndex, frame);
+            this.orderedPackets.set(frame.orderChannel, outOfOrderQueue);
+        }
+    }
+
+    private handleReliableFrame(frame: Frame): void {
+        if (frame.reliableIndex > (this.reliablePackets.size > 0 ? Math.max(...this.reliablePackets.keys()) : -1)) {
+            this.reliablePackets.set(frame.reliableIndex, frame);
+            this.processReliableFrames();
+        }
+    }
+
+    private processReliableFrames(): void {
+        const sortedReliableIndexes = Array.from(this.reliablePackets.keys()).sort((a, b) => a - b);
+        for (const index of sortedReliableIndexes) {
+            const frame = this.reliablePackets.get(index)!;
+            this.processFrame(frame);
+            this.reliablePackets.delete(index);
+        }
+    }
+
+    private handleConnectedPing(buffer: Buffer): void {
+        const packet = new ConnectedPing(buffer);
+        const deserializedPacket = packet.deserialize();
+            
+        const pong = new ConnectedPong();
+        pong.pingTimestamp = deserializedPacket.timestamp;
+        pong.timestamp = BigInt(Date.now());
+
+        const frame = new Frame();
+        frame.reliability = Reliability.Unreliable;
+        frame.orderChannel = 0;
+        frame.payload = pong.serialize();
+        
+        this.raknet.queue.sendFrame(frame, Priority.Immediate);
+    }
+
+    private handleConnectionRequestAccepted(frame: Frame): void {
+        const IncomingPacket = new ConnectionRequestAccepted(frame.payload);
+        const des = IncomingPacket.deserialize();
+        if (!des) {
+            console.error('Failed to deserialize IncomingPacket!');
+            return;
+        }
+
+        let packet = new OhMyNewIncommingConnection();
+        packet.internalAddress = new Array<Address>()
+        for (let i = 0; i < 10; i++) {
+            packet.internalAddress[i] = new Address('0.0.0.0', 0, 4);
+        }
+        /** @ts-ignore */
+        packet.serverAddress = new Address(des.address.address, des.address.port, 4);
+        packet.incomingTimestamp = BigInt(Date.now());
+        packet.serverTimestamp = des.timestamp; 
+
+        const sendFrame = new Frame();
+        sendFrame.reliability = Reliability.ReliableOrdered;
+        sendFrame.orderChannel = 0;
+        sendFrame.payload = packet.serialize();
+        if (!frame.payload) {
+            console.error('Failed to serialize the packet!');
+            return;
+        }
+
+        this.raknet.queue.sendFrame(sendFrame, Priority.Immediate);
+        void this.raknet.emit("connect", this);
+    }
+
+    private async handleGamePacket(buffer: Buffer): Promise<void> {
+        let decrypted = buffer.subarray(1);
+        if (_client.encryption) {
+            try {decrypted = _encryptor.decryptPacket(decrypted)} catch(error) {
+                //console.log(error)
+                return;
+            }
+        }
+        
+        const algorithm: CompressionMethod = CompressionMethod[ decrypted[0] as number ]
+                                                                ? decrypted.readUint8()
+                                                                : CompressionMethod.NotPresent;
+
+        if (algorithm !== CompressionMethod.NotPresent) decrypted = decrypted.subarray(1);
+        let inflated: Buffer;
+
+        switch (algorithm) {
+            case CompressionMethod.Zlib: {
+                inflated = inflateRawSync(decrypted);
+                break;
+            }
+            case CompressionMethod.None:
+            case CompressionMethod.NotPresent: {
+                inflated = decrypted;
+                break;
+            }
+            default: {
+                return console.error(
+                    `Received invalid compression algorithm !`,
+                    CompressionMethod[algorithm]
+                );
+            }
+        }
+
+        let frames;
+        try { frames = Framer.unframe(inflated) }  catch (error) {
+            console.log("\n\n\nCAN NOT UNFRAME\n\n\n")
+        }       
+        if(!frames) return;
+        for (const frame of frames) {
+            const id = getPacketId(frame);
+            const packet = Packets[id];
+            if(!packet){
+                Logger.warn("Packet with ID " + id + " not found");
+                break;
+            }
+            Logger.debug(packet.name)
+            if(packet.name == SetEntityDataPacket.name) return; // Is broken ig?
+            const instance = new packet(frame).deserialize();
+            let ignoreDebugPackets = [
+                LevelChunkPacket.name,
+                StartGamePacket.name
+            ]
+            if(!ignoreDebugPackets.includes(packet.name)) console.log(instance)
+            _client.emit(Packets[id].name, instance);
+        }
+    }   
+
+    private processFrame(frame: Frame): void {
+        const header = (frame.payload[0] as number);
+        //console.log(`Processing frame: ${header}`);
+        switch (header) {
+            case Packet.ConnectionRequestAccepted:
+                this.handleConnectionRequestAccepted(frame);
+                break;
+            case GAME_BYTE:
+                this.handleGamePacket(frame.payload);
+                break;
+            case Packet.ConnectedPing:
+                this.handleConnectedPing(frame.payload);
+                break;
+            default:
+                console.log(`Unknown frame: ${header}`);
+                break;
+        }
     }
 }
+
