@@ -2,6 +2,20 @@ const swc = require("@swc/core");
 const fs = require("fs");
 const path = require("path");
 
+const ignoredPaths = [
+  '.git', 
+  'node_modules', 
+  'tsconfig.json',
+  'package.json',
+  'dist',
+  'package-lock.json',
+  'yarn.lock',
+  '.swcrc',
+  '.gitignore',
+  'tokens',
+  'build.js'
+];
+
 const mkdirSyncRecursive = (directory) => {
   const parentDirectory = path.dirname(directory);
   if (!fs.existsSync(parentDirectory)) {
@@ -35,31 +49,45 @@ const compile = async (filePath) => {
 };
 
 const compileDirectory = async (srcDir, outDir) => {
-  const files = fs.readdirSync(srcDir);
-  for (const file of files) {
-    const fullPath = path.join(srcDir, file);
-    const outPath = path.join(outDir, file.replace(/\.ts$/, '.js')); 
-    if (fs.lstatSync(fullPath).isDirectory()) {
-      if (!fs.existsSync(outPath)) mkdirSyncRecursive(outPath);
-      await compileDirectory(fullPath, outPath);
-    } else {
-      if (path.extname(file) === ".json") {
-        mkdirSyncRecursive(path.dirname(outPath)); 
-        fs.copyFileSync(fullPath, outPath);
+  try {
+    const files = fs.readdirSync(srcDir);
+    for (const file of files) {
+      const fullPath = path.join(srcDir, file);
+      const outPath = path.join(outDir, file.replace(/\.ts$/, '.js')); 
+
+      if (ignoredPaths.includes(file)) {
+        console.log(`Ignoring: ${fullPath}`);
         continue;
       }
+
       try {
-        const compiledCode = await compile(fullPath);
-        mkdirSyncRecursive(path.dirname(outPath));  
-        fs.writeFileSync(outPath, compiledCode);
+        const stats = fs.lstatSync(fullPath);
+        if (stats.isDirectory()) {
+          if (!fs.existsSync(outPath)) mkdirSyncRecursive(outPath);
+          await compileDirectory(fullPath, outPath);
+        } else {
+          if (path.extname(file) === ".json") {
+            mkdirSyncRecursive(path.dirname(outPath)); 
+            fs.copyFileSync(fullPath, outPath);
+            continue;
+          }
+          const compiledCode = await compile(fullPath);
+          mkdirSyncRecursive(path.dirname(outPath));  
+          fs.writeFileSync(outPath, compiledCode);
+        }
       } catch (error) {
-        console.error(`Failed to compile ${fullPath}:`, error);
+        console.error(`Error processing ${fullPath}:`, error.message);
       }
     }
+  } catch (error) {
+    console.error(`Error reading directory ${srcDir}:`, error.message);
   }
 };
 
-compileDirectory("src", "dist").then(() => {
+const srcDir = process.cwd();
+const outDir = path.join(srcDir, 'dist');
+
+compileDirectory(srcDir, outDir).then(() => {
   console.log("Compilation complete.");
 }).catch(err => {
   console.error("Compilation failed:", err);
