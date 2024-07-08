@@ -1,13 +1,12 @@
-import { Ack, Address, ConnectionRequest, Frame, Nack, OpenConnectionReply1, OpenConnectionReply2, OpenConnectionRequest1, OpenConnectionRequest2, Packet, Priority, Reliability, UnconnectedPing } from "@serenityjs/raknet";
+import { Ack, Address, Frame, Nack, OpenConnectionReply1, OpenConnectionRequest1, OpenConnectionRequest2, Packet, Priority, Reliability, UnconnectedPing } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import { FrameHandler } from "./FrameHandler";
 import { NewConnectionRequest } from "../packets/raknet/NewConnectionRequest";
 import Client from "../Client";
-import Logger from "../utils/Logger";
 
 const magic = Buffer.from('00ffff00fefefefefdfdfdfd12345678', 'hex');
 
-export class PacketHandler {
+export  class PacketHandler {
     public framehandler: FrameHandler;
 
 	constructor(private client: RakNetClient) {
@@ -15,7 +14,7 @@ export class PacketHandler {
     }
 
     public handleIncoming(buffer: Buffer){
-        const packetId = buffer[0];
+        const packetId = buffer.readUint8();
         let ignore = [132, 192, 128]
         if(!ignore.includes(packetId)) console.info('Received packet ', packetId);
 
@@ -42,8 +41,15 @@ export class PacketHandler {
             case 130: 
             case 131:
             case 132:
-            case 133:
-                this.framehandler.handleIncomingFrameSet(buffer);
+            case 134:
+            case 135:
+            case 136:
+            case 137:
+            case 138:
+            case 139:
+            case 140:
+            case 141:
+                this.framehandler.handleFrameSet(buffer);
                 break;
             default:
                 console.info('Received unknown packet ', packetId);
@@ -98,8 +104,5 @@ export class PacketHandler {
         this.client.send(packet.serialize());
         if(Client.debug) console.log('[debug] Sending UnconnectedPing.')
     }
-
-
-
 
 }
