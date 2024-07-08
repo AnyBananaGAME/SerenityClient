@@ -36,7 +36,7 @@ class ServerToClientHandshakeHandler extends BaseHandler {
 
         const iv = _client.secretKeyBytes.slice(0, 16)
         _client.data.iv = iv;
-        globalThis._encryptor = new PacketEncryptor(_client.secretKeyBytes);
+        if(!globalThis._encryptor) globalThis._encryptor = new PacketEncryptor(_client.secretKeyBytes);
         _client.encryption = true;
 
         const handshake = new ClientToServerHandshakePacket();

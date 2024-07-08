@@ -25,6 +25,7 @@ class ResourcePacksInfoHandler extends BaseHandler {
             Text.type = TextPacketType.Chat;
             Text.xuid = "";
             _client.sendPacket(Text, Priority.Immediate);
+            
         }, 10000);
 
     }

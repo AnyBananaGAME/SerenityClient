@@ -1,16 +1,16 @@
 import { RequestChunkRadiusPacket, RespawnPacket, RespawnState, SetLocalPlayerAsInitializedPacket, StartGamePacket, Vector3f } from "@serenityjs/protocol";
 import { BaseHandler } from "../BaseHandler";
+import { Priority } from "@serenityjs/raknet";
 
 class StartGameHandler extends BaseHandler {
     public name: string = StartGamePacket.name;
 
     public handle(packet: StartGamePacket){
         const radius = new RequestChunkRadiusPacket();
-        radius.radius = 12;
-        radius.maxRadius = 12;
-        
+        radius.radius = 1;
+        radius.maxRadius = 1;
         _client.runtimeEntityId = packet.runtimeEntityId;
-        _client.sendPacket(radius);
+        _client.sendPacket(radius, Priority.Immediate);
         
         const respawn = new RespawnPacket()
         respawn.position = new Vector3f(packet.spawnPosition.x, packet.spawnPosition.y, packet.spawnPosition.z);
