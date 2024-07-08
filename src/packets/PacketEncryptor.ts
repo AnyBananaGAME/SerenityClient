@@ -25,6 +25,7 @@ class PacketEncryptor {
     }
 
     initializeCipher(iv: Buffer) {
+        if(this.cipher) return;
         let cipher = this.createCipher(this.secretKeyBytes, iv.slice(0, 12), 'aes-256-gcm') 
         if (!cipher) {
             throw new Error("Cipher not initialized");
@@ -33,6 +34,7 @@ class PacketEncryptor {
     }
     
     initializeDecipher(iv: Buffer) {
+        if(this.decipher) return;
         this.decipher = crypto.createDecipheriv('aes-256-ctr', this.secretKeyBytes, Buffer.concat([iv.slice(0, 12), Buffer.from([0, 0, 0, 2])]));
     }
     
