@@ -1,7 +1,7 @@
-import Client from "../Client";
 import { BaseHandler } from "./BaseHandler";
 import fs from 'fs';
 import path from 'path';
+import Client from "../../../Client";
 
 class PacketHandler {
     private handlers: Map<string, BaseHandler>;

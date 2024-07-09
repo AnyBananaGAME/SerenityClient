@@ -6,17 +6,10 @@ import * as JWT from "jsonwebtoken";
 import { createHash, createPublicKey, diffieHellman, KeyExportOptions } from "crypto";
 import { PacketEncryptor } from "../../packets/PacketEncryptor";
 
-const SALT = '🧂'
-const pem:  KeyExportOptions<"pem"> = { format: 'pem', type: 'sec1' };
-const der:  KeyExportOptions<"der"> = { format: 'der', type: 'spki' };
-
 class ServerToClientHandshakeHandler extends BaseHandler {
     public name: string = ServerToClientHandshakePacket.name;
 
     handle(packet: ServerToClientHandshakePacket){
-        console.log("ServerToClientHandshakePacket Handler")
-        console.log(packet);
-        const { clientX509, ecdhKeyPair } = _client.data.loginData;
         let jwt = packet.token;
 
         const [header, payload] = jwt.split('.').map(k => Buffer.from(k, 'base64'));
@@ -25,19 +18,19 @@ class ServerToClientHandshakeHandler extends BaseHandler {
         const body = JSON.parse(String(payload))
 
         const pubKeyDer = createPublicKey({ key: Buffer.from(head.x5u, 'base64'), type: "spki", format: "der" })
-        _client.sharedSecret = diffieHellman({ privateKey: _client.data.loginData.ecdhKeyPair.privateKey, publicKey: pubKeyDer })
+        _client.data.sharedSecret = diffieHellman({ privateKey: _client.data.loginData.ecdhKeyPair.privateKey, publicKey: pubKeyDer })
 
         const salt = Buffer.from(body.salt, 'base64')
         const secretHash = createHash('sha256')
         secretHash.update(salt)
-        secretHash.update(_client.sharedSecret)
+        secretHash.update(_client.data.sharedSecret)
 
-        _client.secretKeyBytes = secretHash.digest()
+        _client.data.secretKeyBytes = secretHash.digest()
 
-        const iv = _client.secretKeyBytes.slice(0, 16)
+        const iv = _client.data.secretKeyBytes.slice(0, 16)
         _client.data.iv = iv;
-        if(!globalThis._encryptor) globalThis._encryptor = new PacketEncryptor(_client.secretKeyBytes);
-        _client.encryption = true;
+        if(!globalThis._encryptor) globalThis._encryptor = new PacketEncryptor(_client.data.secretKeyBytes);
+        _client._encryption = true;
 
         const handshake = new ClientToServerHandshakePacket();
         _client.sendPacket(handshake, Priority.Immediate);

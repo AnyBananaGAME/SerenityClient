@@ -6,6 +6,7 @@
   "scripts": {
     "test": "bun ./build.js && node ./dist/index.js",
     "build": "tsc",
+    "1": "bun ./build.js && node ./dist/index.js",
     "dev": "tsc && node ./dist/index.js"
   },
   "keywords": [],

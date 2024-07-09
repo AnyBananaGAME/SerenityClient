@@ -4,7 +4,8 @@ import { EventEmitter } from "stream";
 import * as UUID from "uuid-1345"; 
 import * as JWT from "jsonwebtoken";
 import * as skin from "./skin/Skin.json";
-import Client from "../Client";
+import { Advertisement } from "../../../Raknet/client/RaknetClient";
+import Client from "../../Client";
 
 type LoginData = {
     ecdhKeyPair: KeyPairKeyObjectResult;
@@ -18,6 +19,13 @@ type LoginData = {
 type Encryptions = {
     compressionLevel: number;
 }
+
+type Profile = {
+    name: string;
+    uuid: string;
+    xuid: string;
+}
+
 const PUBLIC_KEY = 'MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECRXueJeTDqNRRgJi/vlRufByu/2G0i2Ebt6YMar5QX/R0DIIyrJMcUpruK4QveTfJSTp3Shlq4Gk34cD/4GUWwkv0DVuzeuB+tXija7HBxii03NHDbPAD0AKnLr2wdAp';
 const algorithm = "ES384";
 const curve = 'secp384r1'
@@ -29,6 +37,14 @@ class ClientData {
     private client: Client;
     public iv: Buffer = Buffer.alloc(0);
     public encryption: Encryptions;
+    public serverAdvertisement!: Advertisement;
+    public profile!: Profile;
+    public accessToken!: string;
+    public sendDeflated = false;
+    public compressionThreshold!: number;
+    public sharedSecret!: Buffer;
+    public secretKeyBytes!: Buffer;
+
     constructor(client: Client){
         this.client = client;
         this.loginData = this.prepareLoginData();
@@ -98,7 +114,7 @@ class ClientData {
             SkinImageHeight: skin.skinData.SkinImageHeight,
             SkinImageWidth: skin.skinData.SkinImageWidth,
             SkinResourcePatch: skin.skinData.SkinResourcePatch,
-            ThirdPartyName: this.client.profile.name,
+            ThirdPartyName: this.client.data.profile.name,
             ThirdPartyNameOnly: false,
             TrustedSkin: skin.skinData.TrustedSkin,
             UIProfile: 0
@@ -125,8 +141,8 @@ class ClientData {
 		if (offline) {
 			const payload = {
 				extraData: {
-					displayName: _client.username,
-					identity: _client.profile.uuid,
+					displayName: this.client.data.profile.name,
+					identity: this.client.data.profile.uuid,
 					titleId: '89692877',
 					XUID: '0',
 				},

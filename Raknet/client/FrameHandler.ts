@@ -1,11 +1,35 @@
-import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, Packet, Priority, Reliability } from "@serenityjs/raknet";
+import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, Packet, Priority, Reliability, Status } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import OhMyNewIncommingConnection from "../packets/raknet/OhMyNewIncommingConnection";
 import { GAME_BYTE } from "@serenityjs/network";
 import { CompressionMethod, Framer, getPacketId, LevelChunkPacket, Packets, SetEntityDataPacket, StartGamePacket } from "@serenityjs/protocol";
 import { inflateRawSync } from "zlib";
-import Logger from "../utils/Logger";
 import { BinaryStream } from "@serenityjs/binarystream";
+import Logger from "../utils/Logger";
+
+export class Queue<T> {
+    private elements: T[] = [];
+
+    enqueue(element: T): void {
+        this.elements.push(element);
+    }
+
+    dequeue(): T | undefined {
+        return this.elements.shift();
+    }
+
+    peek(): T | undefined {
+        return this.elements[0];
+    }
+
+    isEmpty(): boolean {
+        return this.elements.length === 0;
+    }
+
+    size(): number {
+        return this.elements.length;
+    }
+}
 
 export class FrameHandler {
     private fragmentedPackets: Map<number, Map<number, Frame>> = new Map();
@@ -17,6 +41,8 @@ export class FrameHandler {
     private lostFrameSequences: Set<number> = new Set();
     private inputHighestSequenceIndex: number[] = new Array(32).fill(0);
     private inputOrderIndex: number[] = new Array(32).fill(0);
+
+    private frameQueue: Queue<Frame> = new Queue<Frame>();
 
     private raknet: RakNetClient;
 
@@ -46,12 +72,10 @@ export class FrameHandler {
         this.highestSequence = frameSet.sequence;
 
         for (const frame of frameSet.frames) {
-            try {
-                this.handleFrame(frame);
-            } catch (error) {
-                Logger.error(`Error processing frame: ${error}`);
-            }
+            this.frameQueue.enqueue(frame);
         }
+
+        this.processQueuedFrames();
     }
 
     private handleFrame(frame: Frame): void {
@@ -65,6 +89,34 @@ export class FrameHandler {
             this.handleReliableFrame(frame);
         } else {
             this.processFrame(frame);
+        }
+    }
+
+    private processFrame(frame: Frame): void {
+        const header = (frame.payload[0] as number);
+        switch (header) {
+            case Packet.ConnectionRequestAccepted:
+                this.handleConnectionRequestAccepted(frame);
+                break;
+            case Packet.ConnectedPing:
+                this.handleConnectedPing(frame.payload);
+                break;
+            default:
+                this.raknet.emit("encapsulated", frame);
+                break;
+        }
+    }
+
+    private processQueuedFrames(): void {
+        while (!this.frameQueue.isEmpty()) {
+            const frame = this.frameQueue.dequeue();
+            if (frame) {
+                try {
+                    this.handleFrame(frame);
+                } catch (error) {
+                    Logger.error(`Error processing frame: ${error}`);
+                }
+            }
         }
     }
 
@@ -182,86 +234,10 @@ export class FrameHandler {
             console.error('Failed to serialize the packet!');
             return;
         }
+        this.raknet.status = Status.Connected;
 
         this.raknet.queue.sendFrame(sendFrame, Priority.Immediate);
-        void this.raknet.emit("connect", this);
-    }
-
-    private async handleGamePacket(buffer: Buffer): Promise<void> {
-        let decrypted = buffer.subarray(1);
-        if (_client.encryption) {
-            try {decrypted = _encryptor.decryptPacket(decrypted)} catch(error) {
-                //console.log(error)
-                return;
-            }
-        }
-        
-        const algorithm: CompressionMethod = CompressionMethod[ decrypted[0] as number ]
-                                                                ? decrypted.readUint8()
-                                                                : CompressionMethod.NotPresent;
-
-        if (algorithm !== CompressionMethod.NotPresent) decrypted = decrypted.subarray(1);
-        let inflated: Buffer;
-
-        switch (algorithm) {
-            case CompressionMethod.Zlib: {
-                inflated = inflateRawSync(decrypted);
-                break;
-            }
-            case CompressionMethod.None:
-            case CompressionMethod.NotPresent: {
-                inflated = decrypted;
-                break;
-            }
-            default: {
-                return console.error(
-                    `Received invalid compression algorithm !`,
-                    CompressionMethod[algorithm]
-                );
-            }
-        }
-
-        let frames;
-        try { frames = Framer.unframe(inflated) }  catch (error) {
-            console.log("\n\n\nCAN NOT UNFRAME\n\n\n")
-        }       
-        if(!frames) return;
-        for (const frame of frames) {
-            const id = getPacketId(frame);
-            const packet = Packets[id];
-            if(!packet){
-                Logger.warn("Packet with ID " + id + " not found");
-                break;
-            }
-            Logger.debug(packet.name)
-            if(packet.name == SetEntityDataPacket.name) return; // Is broken ig?
-            const instance = new packet(frame).deserialize();
-            let ignoreDebugPackets = [
-                LevelChunkPacket.name,
-                StartGamePacket.name
-            ]
-            if(!ignoreDebugPackets.includes(packet.name)) console.log(instance)
-            _client.emit(Packets[id].name, instance);
-        }
-    }   
-
-    private processFrame(frame: Frame): void {
-        const header = (frame.payload[0] as number);
-        //console.log(`Processing frame: ${header}`);
-        switch (header) {
-            case Packet.ConnectionRequestAccepted:
-                this.handleConnectionRequestAccepted(frame);
-                break;
-            case GAME_BYTE:
-                this.handleGamePacket(frame.payload);
-                break;
-            case Packet.ConnectedPing:
-                this.handleConnectedPing(frame.payload);
-                break;
-            default:
-                console.log(`Unknown frame: ${header}`);
-                break;
-        }
+        void this.raknet.emit("connect", {});
     }
 }
 

@@ -2,7 +2,7 @@ import { Ack, Address, Frame, Nack, OpenConnectionReply1, OpenConnectionRequest1
 import RakNetClient from "./RaknetClient";
 import { FrameHandler } from "./FrameHandler";
 import { NewConnectionRequest } from "../packets/raknet/NewConnectionRequest";
-import Client from "../Client";
+import Logger from "../utils/Logger";
 
 const magic = Buffer.from('00ffff00fefefefefdfdfdfd12345678', 'hex');
 
@@ -16,8 +16,7 @@ export  class PacketHandler {
     public handleIncoming(buffer: Buffer){
         const packetId = buffer.readUint8();
         let ignore = [132, 192, 128]
-        if(!ignore.includes(packetId)) console.info('Received packet ', packetId);
-
+       if(!ignore.includes(packetId)) Logger.debug("Received Packet ID " + packetId)
         switch (packetId) {
             case 254:
                 process.exit(0);
@@ -52,7 +51,7 @@ export  class PacketHandler {
                 this.framehandler.handleFrameSet(buffer);
                 break;
             default:
-                console.info('Received unknown packet ', packetId);
+                Logger.debug('Received unknown packet ', packetId);
         }
     }
 
@@ -102,7 +101,6 @@ export  class PacketHandler {
         packet.magic = magic;
         packet.client = BigInt(this.client.id);
         this.client.send(packet.serialize());
-        if(Client.debug) console.log('[debug] Sending UnconnectedPing.')
     }
 
 }

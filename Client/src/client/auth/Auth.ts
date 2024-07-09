@@ -1,14 +1,12 @@
 import { Authflow, Titles } from "prismarine-auth";
-import Client from "../../Client";
+import Client from "../../../Client";
 
 async function authenticate (client: Client) {
-    try {
-    const authflow = new Authflow("AnyBananaGAME", "./tokens/", { 
+    const authflow = new Authflow(client.options.username, __dirname + "../tokens/", { 
         authTitle: Titles.MinecraftNintendoSwitch, 
         flow: "live",
         deviceType: 'Nintendo'
     }, console.log);
-    
     /** @ts-ignore */
     const chains = await authflow.getMinecraftBedrockToken(client.data.loginData.clientX509).catch(e => {
       console.log("Error whilw getting Chains! " + client.data.loginData.clientX509);
@@ -27,11 +25,6 @@ async function authenticate (client: Client) {
     
 
     return {profile: profile, chains: chains};
-    } catch (err) {
-        console.error(err)
-        client.emit('error', err)
-        return { profile: {name: "any", uuid: "any", xuid: "any"}, chains: "" };
-  }
 }
 
 export {authenticate}

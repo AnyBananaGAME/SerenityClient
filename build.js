@@ -56,7 +56,7 @@ const compileDirectory = async (srcDir, outDir) => {
       const outPath = path.join(outDir, file.replace(/\.ts$/, '.js')); 
 
       if (ignoredPaths.includes(file)) {
-        console.log(`Ignoring: ${fullPath}`);
+        //console.log(`Ignoring: ${fullPath}`);
         continue;
       }
 

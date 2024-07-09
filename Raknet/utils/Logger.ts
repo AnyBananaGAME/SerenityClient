@@ -16,12 +16,17 @@ class Logger {
     }
 
     static debug(...message: any){
+        if(process.argv.includes('--debug'))
         console.info(this.date(), chalk.gray("DEBUG"), ...message, this.getCallerPath())
     }
 
     static date(){
         const date = new Date();
         return `${chalk.gray("[")}${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}:${chalk.dim(date.getMilliseconds())}${chalk.gray("]")}`
+    }
+
+    static chat(...message: any){
+        console.info(this.date(), chalk.green("CHAT"), chalk.greenBright(...message))
     }
 
     static getCallerPath() {

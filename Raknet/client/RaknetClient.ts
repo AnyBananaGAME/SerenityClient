@@ -1,9 +1,7 @@
 import { EventEmitter } from 'events';
 import * as dgram from 'dgram';
-import { Address, ConnectionRequest, Magic, OpenConnectionReply1, OpenConnectionReply2, OpenConnectionRequest1, OpenConnectionRequest2, Packet, UnconnectedPong } from '@serenityjs/raknet';
-import Client from '../Client';
+import { Packet, Status, UnconnectedPong } from '@serenityjs/raknet';
 import { BinaryStream } from '@serenityjs/binarystream';
-import { randomBytes } from 'crypto';
 import { PacketHandler } from './PacketHandler';
 import { Queue } from './Queue';
 
@@ -30,20 +28,21 @@ export default  class RakNetClient extends EventEmitter {
   public serverAddress: string;
   public serverPort: number;
   public connected: boolean = false;
-  public client: Client;
   public protocol: number = 11;
   public id: bigint;
   private packetHandler: PacketHandler;
   private isBusy: boolean = false;
   public queue: Queue;
 
-  constructor(serverAddress: string, serverPort: number, client: Client) {
+  public status: Status = Status.Disconnected;
+  public static debug = false;
+
+  constructor(serverAddress: string, serverPort: number) {
     super();
     this.serverAddress = serverAddress;
     this.serverPort = serverPort;
     this.socket = dgram.createSocket('udp4');
     this.connected = false;
-    this.client = client;
     this.id = BigInt(Array.from({ length: 20 }, () => Math.floor(Math.random() * 10)).join(''));
     this.packetHandler = new PacketHandler(this);
 	this.queue = new Queue(this);

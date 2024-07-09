@@ -21,7 +21,7 @@ class ResourcePacksInfoHandler extends BaseHandler {
             Text.needsTranslation = false;
             Text.parameters = [];
             Text.platformChatId = "";
-            Text.source = _client.username;
+            Text.source = _client.data.profile.name;
             Text.type = TextPacketType.Chat;
             Text.xuid = "";
             _client.sendPacket(Text, Priority.Immediate);
