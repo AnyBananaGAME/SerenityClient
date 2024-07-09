@@ -1,9 +1,6 @@
 import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, Packet, Priority, Reliability, Status } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import OhMyNewIncommingConnection from "../packets/raknet/OhMyNewIncommingConnection";
-import { GAME_BYTE } from "@serenityjs/network";
-import { CompressionMethod, Framer, getPacketId, LevelChunkPacket, Packets, SetEntityDataPacket, StartGamePacket } from "@serenityjs/protocol";
-import { inflateRawSync } from "zlib";
 import { BinaryStream } from "@serenityjs/binarystream";
 import Logger from "../utils/Logger";
 
@@ -216,12 +213,11 @@ export class FrameHandler {
             return;
         }
 
-        let packet = new OhMyNewIncommingConnection();
+        const packet = new OhMyNewIncommingConnection();
         packet.internalAddress = new Array<Address>()
         for (let i = 0; i < 10; i++) {
             packet.internalAddress[i] = new Address('0.0.0.0', 0, 4);
         }
-        /** @ts-ignore */
         packet.serverAddress = new Address(des.address.address, des.address.port, 4);
         packet.incomingTimestamp = BigInt(Date.now());
         packet.serverTimestamp = des.timestamp; 

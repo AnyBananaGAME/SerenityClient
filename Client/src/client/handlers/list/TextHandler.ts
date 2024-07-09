@@ -1,6 +1,5 @@
-import { RequestChunkRadiusPacket, RespawnPacket, RespawnState, SetLocalPlayerAsInitializedPacket, StartGamePacket, TextPacket, TextPacketType, Vector3f } from "@serenityjs/protocol";
+import { TextPacket, TextPacketType } from "@serenityjs/protocol";
 import { BaseHandler } from "../BaseHandler";
-import { Priority } from "@serenityjs/raknet";
 import Logger from "../../../utils/Logger";
 
 class StartGameHandler extends BaseHandler {
@@ -9,7 +8,7 @@ class StartGameHandler extends BaseHandler {
     public handle(packet: TextPacket){
 
         if(packet.message.includes("%chat.type.announcement")) {
-            let o = packet;
+            const o = packet;
             o.message = "%chat.type.announcement";
             this.handleTranslationChat(o);
             return;

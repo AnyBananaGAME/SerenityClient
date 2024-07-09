@@ -1,16 +1,15 @@
-import { Packet, Packets, ServerToClientHandshakePacket } from "@serenityjs/protocol";
+import { ServerToClientHandshakePacket } from "@serenityjs/protocol";
 import { BaseHandler } from "../BaseHandler";
 import { ClientToServerHandshakePacket } from "../../packets/game/ClientToServerHandshakePacket";
 import { Priority } from "@serenityjs/raknet";
-import * as JWT from "jsonwebtoken";
-import { createHash, createPublicKey, diffieHellman, KeyExportOptions } from "crypto";
+import { createHash, createPublicKey, diffieHellman } from "crypto";
 import { PacketEncryptor } from "../../packets/PacketEncryptor";
 
 class ServerToClientHandshakeHandler extends BaseHandler {
     public name: string = ServerToClientHandshakePacket.name;
 
     handle(packet: ServerToClientHandshakePacket){
-        let jwt = packet.token;
+        const jwt = packet.token;
 
         const [header, payload] = jwt.split('.').map(k => Buffer.from(k, 'base64'));
 
@@ -36,11 +35,6 @@ class ServerToClientHandshakeHandler extends BaseHandler {
         _client.sendPacket(handshake, Priority.Immediate);
     }
 
-}
-
-function toBase64 (string: string) {
-    return Buffer.from(string).toString('base64')
-}
-  
+}  
 
 export { ServerToClientHandshakeHandler }

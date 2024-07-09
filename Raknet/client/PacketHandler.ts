@@ -15,7 +15,7 @@ export  class PacketHandler {
 
     public handleIncoming(buffer: Buffer){
         const packetId = buffer.readUint8();
-        let ignore = [132, 192, 128]
+        const ignore = [132, 192, 128]
        if(!ignore.includes(packetId)) Logger.debug("Received Packet ID " + packetId)
         switch (packetId) {
             case 254:
@@ -25,15 +25,13 @@ export  class PacketHandler {
                 this.handleOpenConnectionRequest2(buffer);
                 break;
             case Packet.OpenConnectionReply2:
-                this.handleOpenConnectionRequest(buffer);
+                this.handleOpenConnectionRequest();
                 break;
             case Packet.Ack:
-                const ack = new Ack(buffer).deserialize();
-                //console.log(ack)
+                Logger.debug(new Ack(buffer).deserialize());
                 break;
             case Packet.Nack:
-                const pak = new Nack(buffer).deserialize();
-                console.log(pak)
+                Logger.debug(new Nack(buffer).deserialize());
                 break;
             case 128:
             case 129:
@@ -51,7 +49,7 @@ export  class PacketHandler {
                 this.framehandler.handleFrameSet(buffer);
                 break;
             default:
-                Logger.debug('Received unknown packet ', packetId);
+                Logger.debug('Received unknown packet ' + packetId);
         }
     }
 
@@ -66,9 +64,7 @@ export  class PacketHandler {
         this.client.send(pak.serialize())
     }
 
-    public handleOpenConnectionRequest(buffer: Buffer){
-        //console.log(new OpenConnectionReply2(buffer).deserialize())
-        const date = new Date();
+    public handleOpenConnectionRequest(){
         const packet = new NewConnectionRequest();
 		packet.client = BigInt(this.client.id);
 		packet.timestamp = BigInt(Date.now());

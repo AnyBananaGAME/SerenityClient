@@ -1,11 +1,11 @@
 import { generateKeyPairSync, KeyExportOptions, KeyObject, KeyPairKeyObjectResult } from "crypto";
 import { SignOptions } from "jsonwebtoken";
-import { EventEmitter } from "stream";
 import * as UUID from "uuid-1345"; 
 import * as JWT from "jsonwebtoken";
 import * as skin from "./skin/Skin.json";
 import { Advertisement } from "../../../Raknet/client/RaknetClient";
 import Client from "../../Client";
+import { AnimatedImageData, PersonaPieces, PieceTintColors } from "./skin/Skin";
 
 type LoginData = {
     ecdhKeyPair: KeyPairKeyObjectResult;
@@ -23,7 +23,51 @@ type Encryptions = {
 type Profile = {
     name: string;
     uuid: string;
-    xuid: string;
+    xuid: number;
+}
+
+export type Payload = {
+  AnimatedImageData: AnimatedImageData[];
+  ArmSize: string;
+  CapeData: string;
+  CapeId: string;
+  CapeImageHeight: number;
+  CapeImageWidth: number;
+  CapeOnClassicSkin: boolean;
+  ClientRandomId: number;
+  CompatibleWithClientSideChunkGen: boolean;
+  CurrentInputMode: number;
+  DefaultInputMode: number;
+  DeviceId: string;
+  DeviceModel: string;
+  DeviceOS: number;
+  GameVersion: string;
+  GuiScale: number;
+  IsEditorMode: boolean;
+  LanguageCode: string;
+  OverrideSkin: boolean;
+  PersonaPieces: PersonaPieces[];
+  PersonaSkin: boolean;
+  PieceTintColors: PieceTintColors[];
+  PlatformOfflineId: string;
+  PlatformOnlineId: string;
+  PlayFabId: string;
+  PremiumSkin: boolean;
+  SelfSignedId: string;
+  ServerAddress: string;
+  SkinAnimationData: string;
+  SkinColor: string;
+  SkinGeometryDataEngineVersion: string;
+  SkinData: string;
+  SkinGeometryData: string;
+  SkinId: string;
+  SkinImageHeight: number;
+  SkinImageWidth: number;
+  SkinResourcePatch: string;
+  ThirdPartyName: string;
+  ThirdPartyNameOnly: boolean;
+  TrustedSkin: boolean;
+  UIProfile: number;
 }
 
 const PUBLIC_KEY = 'MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAECRXueJeTDqNRRgJi/vlRufByu/2G0i2Ebt6YMar5QX/R0DIIyrJMcUpruK4QveTfJSTp3Shlq4Gk34cD/4GUWwkv0DVuzeuB+tXija7HBxii03NHDbPAD0AKnLr2wdAp';
@@ -39,7 +83,7 @@ class ClientData {
     public encryption: Encryptions;
     public serverAdvertisement!: Advertisement;
     public profile!: Profile;
-    public accessToken!: string;
+    public accessToken!: string[];
     public sendDeflated = false;
     public compressionThreshold!: number;
     public sharedSecret!: Buffer;
@@ -53,10 +97,9 @@ class ClientData {
         }
     }
 
-
     private prepareLoginData(){
-        let ecdhKeyPair = generateKeyPairSync('ec', { namedCurve: curve });
-        let loginData = {
+        const ecdhKeyPair = generateKeyPairSync('ec', { namedCurve: curve });
+        const loginData = {
             ecdhKeyPair: ecdhKeyPair,
             publicKeyDER: Buffer.alloc(0),
             privateKeyPEM: "",
@@ -74,70 +117,71 @@ class ClientData {
 
 
 	public createClientUserChain(privateKey: KeyObject): string {
-        let { clientX509 } = this.loginData;
-
-		let payload: any = {
-            AnimatedImageData: skin.skinData.AnimatedImageData,
-            ArmSize: skin.skinData.ArmSize,
-            CapeData: skin.skinData.CapeData,
-            CapeId: skin.skinData.CapeId,
-            CapeImageHeight: skin.skinData.CapeImageHeight,
-            CapeImageWidth: skin.skinData.CapeImageWidth,
-            CapeOnClassicSkin: skin.skinData.CapeOnClassicSkin,
-			ClientRandomId: Date.now(),
-            CompatibleWithClientSideChunkGen: false,
-            CurrentInputMode: 1,
-            DefaultInputMode: 1,
-			DeviceId: this.nextUUID(),
-			DeviceModel: 'Helicopter',
-            DeviceOS: 7,
-            GameVersion: this.client.options.version,
-            GuiScale: 0,
-            IsEditorMode: false,
-            LanguageCode: 'en_US',
-            OverrideSkin: false,
-            PersonaPieces: skin.skinData.PersonaPieces,
-            PersonaSkin: skin.skinData.PersonaSkin,
-            PieceTintColors: skin.skinData.PieceTintColors,
-            PlatformOfflineId: '',
-            PlatformOnlineId: '',
-			PlayFabId: this.nextUUID().replace(/-/g, '').slice(0, 16),
-            PremiumSkin: skin.skinData.PremiumSkin,
-			SelfSignedId: this.nextUUID(),
-			ServerAddress: `${this.client.options.host}:${this.client.options.port}`,
-            SkinAnimationData: skin.skinData.SkinAnimationData,
-            SkinColor: skin.skinData.SkinColor,
-			SkinGeometryDataEngineVersion: skin.skinData.SkinGeometryDataEngineVersion,
-            SkinData: skin.skinData.SkinData,
-            SkinGeometryData: skin.skinData.SkinGeometryData,
-            SkinId: skin.skinData.SkinId,
-            SkinImageHeight: skin.skinData.SkinImageHeight,
-            SkinImageWidth: skin.skinData.SkinImageWidth,
-            SkinResourcePatch: skin.skinData.SkinResourcePatch,
-            ThirdPartyName: this.client.data.profile.name,
-            ThirdPartyNameOnly: false,
-            TrustedSkin: skin.skinData.TrustedSkin,
-            UIProfile: 0
+    const { clientX509 } = this.loginData;
+    
+  
+		let payload: Payload = {
+      AnimatedImageData: skin.skinData.AnimatedImageData as AnimatedImageData[],
+      ArmSize: skin.skinData.ArmSize,
+      CapeData: skin.skinData.CapeData,
+      CapeId: skin.skinData.CapeId,
+      CapeImageHeight: skin.skinData.CapeImageHeight,
+      CapeImageWidth: skin.skinData.CapeImageWidth,
+      CapeOnClassicSkin: skin.skinData.CapeOnClassicSkin,
+      ClientRandomId: Date.now(),
+      CompatibleWithClientSideChunkGen: false,
+      CurrentInputMode: 1,
+      DefaultInputMode: 1,
+      DeviceId: this.nextUUID(),
+      DeviceModel: 'Helicopter',
+      DeviceOS: 7,
+      GameVersion: this.client.options.version,
+      GuiScale: 0,
+      IsEditorMode: false,
+      LanguageCode: 'en_US',
+      OverrideSkin: false,
+      PersonaPieces: skin.skinData.PersonaPieces,
+      PersonaSkin: skin.skinData.PersonaSkin,
+      PieceTintColors: skin.skinData.PieceTintColors,
+      PlatformOfflineId: '',
+      PlatformOnlineId: '',
+      PlayFabId: this.nextUUID().replace(/-/g, '').slice(0, 16),
+      PremiumSkin: skin.skinData.PremiumSkin,
+      SelfSignedId: this.nextUUID(),
+      ServerAddress: `${this.client.options.host}:${this.client.options.port}`,
+      SkinAnimationData: skin.skinData.SkinAnimationData,
+      SkinColor: skin.skinData.SkinColor,
+      SkinGeometryDataEngineVersion: skin.skinData.SkinGeometryDataEngineVersion,
+      SkinData: skin.skinData.SkinData,
+      SkinGeometryData: skin.skinData.SkinGeometryData,
+      SkinId: skin.skinData.SkinId,
+      SkinImageHeight: skin.skinData.SkinImageHeight,
+      SkinImageWidth: skin.skinData.SkinImageWidth,
+      SkinResourcePatch: skin.skinData.SkinResourcePatch,
+      ThirdPartyName: this.client.data.profile.name,
+      ThirdPartyNameOnly: false,
+      TrustedSkin: skin.skinData.TrustedSkin,
+      UIProfile: 0
 		};
 
-        const customPayload = this.client.options.skinData || {};
-		payload = { ...payload, ...customPayload };
-		payload.ServerAddress = `${this.client.options.host}:${this.client.options.port}`;
+    const customPayload = this.client.options.skinData || {};
+		    payload = { ...payload, ...customPayload };
+		    payload.ServerAddress = `${this.client.options.host}:${this.client.options.port}`;
 
-        //@ts-ignore
-        let clientUserChain = JWT.sign(payload, privateKey, {
-            algorithm,
-            header: { alg: algorithm, x5u: clientX509, typ: undefined }, 
-            noTimestamp: true,
-        });
-        this.loginData.clientUserChain = clientUserChain;
-        return clientUserChain;
+    // @ts-expect-error PrivateKey.
+    const clientUserChain = JWT.sign(payload, privateKey, {
+        algorithm,
+        header: { alg: algorithm, x5u: clientX509, typ: undefined }, 
+        noTimestamp: true,
+    });
+    this.loginData.clientUserChain = clientUserChain;
+    return clientUserChain;
     }
 
 
     public createClientChain(mojangKey: string | null, offline: boolean): string {
 		let token: string;
-        let { clientX509, ecdhKeyPair } = this.loginData;
+    const { clientX509, ecdhKeyPair } = this.loginData;
 		if (offline) {
 			const payload = {
 				extraData: {
@@ -156,22 +200,22 @@ class ClientData {
 				expiresIn: 60 * 60,
 				header: { alg: algorithm, x5u: clientX509, typ: undefined },
 			};
-            //@ts-ignore
+       // @ts-expect-error ecdhKeyPair
 			token = JWT.sign(payload, _ecdhKeyPair.privateKey, signOptions);
 		} else {
 			const payload = {
 				identityPublicKey: mojangKey || PUBLIC_KEY, 
 				certificateAuthority: true,
 			};
-            const signOptions: SignOptions = {
-                algorithm: algorithm,
-                header: { alg: algorithm, x5u: clientX509, typ: undefined },
-            };
-            //@ts-ignore
+        const signOptions: SignOptions = {
+            algorithm: algorithm,
+            header: { alg: algorithm, x5u: clientX509, typ: undefined },
+        };
+      // @ts-expect-error ecdhKeyPair
 			token = JWT.sign(payload, ecdhKeyPair.privateKey, signOptions);
 		}
 		this.loginData.clientIdentityChain = token;
-        return token;
+    return token;
 	}
 
 

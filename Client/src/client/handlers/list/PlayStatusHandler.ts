@@ -7,10 +7,7 @@ class PlayerStatusHandler extends BaseHandler {
     public handle(packet: PlayStatusPacket) {
         switch (packet.status) {
             case PlayStatus.PlayerSpawn:
-                const init = new SetLocalPlayerAsInitializedPacket()
-                init.runtimeEntityId = _client.runtimeEntityId;
-            
-                _client.sendPacket(init);
+                this.playerSpawn();
                 break;
         
             default:
@@ -18,6 +15,12 @@ class PlayerStatusHandler extends BaseHandler {
         }
       
         
+    }
+
+    public playerSpawn(): void {
+        const init = new SetLocalPlayerAsInitializedPacket()
+        init.runtimeEntityId = _client.runtimeEntityId;
+        _client.sendPacket(init);
     }
 }
 

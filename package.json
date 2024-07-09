@@ -7,7 +7,8 @@
     "test": "bun ./build.js && node ./dist/index.js",
     "build": "tsc",
     "1": "bun ./build.js && node ./dist/index.js",
-    "dev": "tsc && node ./dist/index.js"
+    "dev": "tsc && node ./dist/index.js",
+    "lint": "eslint . "
   },
   "keywords": [],
   "author": "",
@@ -30,11 +31,15 @@
     "ts-node": "^10.9.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.6.0",
     "@types/jsonwebtoken": "^9.0.0",
     "@types/node": "^20.14.9",
     "@types/snappyjs": "^0.7.1",
     "@types/uuid-1345": "^0.99.25",
+    "eslint": "9.x",
+    "globals": "^15.8.0",
     "jsonwebtoken": "^9.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^7.16.0"
   }
 }

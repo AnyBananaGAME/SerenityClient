@@ -8,13 +8,13 @@ import { deflateRawSync, inflateRawSync } from "zlib";
 import Logger from "./src/utils/Logger";
 import { PacketEncryptor } from "./src/client/packets/PacketEncryptor";
 import { ClientData } from "./src/client/ClientData";
-import { authenticate } from "./src/client/auth/Auth";
+import { authenticate, createOfflineSession } from "./src/client/auth/Auth";
 import { defaultOptions, Options } from "./src/client/ClientOptions";
 import { PacketHandler } from "./src/client/handlers";
 
 declare global {
-    var _client: Client;
-    var _encryptor: PacketEncryptor;
+    var _client: Client; // eslint-disable-line
+    var _encryptor: PacketEncryptor; // eslint-disable-line
 }
 
 class Client extends EventEmitter {
@@ -28,7 +28,7 @@ class Client extends EventEmitter {
     
     public runtimeEntityId!: bigint;
 
-    public constructor(options: Options) {
+    public constructor(options: Partial<Options> = {}) {
         super();
         this.options = { ...defaultOptions, ...options };
         if (!this.options.host) throw new Error("Host cannot be undefined");
@@ -55,7 +55,10 @@ class Client extends EventEmitter {
         });
 
         if (this.options.offline) {
-            //auth.createOfflineSession(this, this.options)
+          createOfflineSession(this).then(i => {
+            this.data.profile = i.profile;
+            this.data.accessToken = i.chains;
+          })
         } else {
             authenticate(this).then(i => {
                 this.data.profile = i.profile;
@@ -83,7 +86,7 @@ class Client extends EventEmitter {
         framed = Framer.frame(serialized);
 
         if(this._encryption){        
-            const encryptedFrame = _encryptor.encryptPacket(framed, priority);
+            const encryptedFrame = _encryptor.encryptPacket(framed);
             this.raknet.queue.sendFrame(encryptedFrame, priority);
         } else {
             let payload;
@@ -165,7 +168,7 @@ class Client extends EventEmitter {
                 Logger.warn("Packet with ID " + id + " not found");
                 break;
             }
-            let ignoreDebugPackets = [
+            const ignoreDebugPackets = [
                 LevelChunkPacket.name,
                 StartGamePacket.name,
                 TextPacket.name,

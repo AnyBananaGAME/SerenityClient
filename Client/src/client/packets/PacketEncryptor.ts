@@ -1,6 +1,6 @@
 import { GAME_BYTE } from "@serenityjs/network";
 import { CompressionMethod } from "@serenityjs/protocol";
-import { Frame, Priority, Reliability } from "@serenityjs/raknet";
+import { Frame, Reliability } from "@serenityjs/raknet";
 import * as crypto from "crypto";
 import * as Zlib from "zlib";
 
@@ -26,7 +26,7 @@ class PacketEncryptor {
 
     initializeCipher(iv: Buffer) {
         if(this.cipher) return;
-        let cipher = this.createCipher(this.secretKeyBytes, iv.slice(0, 12), 'aes-256-gcm') 
+        const cipher = this.createCipher(this.secretKeyBytes, iv.slice(0, 12), 'aes-256-gcm') 
         if (!cipher) {
             throw new Error("Cipher not initialized");
         }
@@ -55,7 +55,7 @@ class PacketEncryptor {
         return hash.slice(0, 8);
     }
 
-    encryptPacket(framed: Buffer, priority: Priority = Priority.Normal): Frame {  
+    encryptPacket(framed: Buffer): Frame {  
         let deflated;
         if (framed.byteLength > this.compressionThreshold) {
             deflated = Buffer.from([CompressionMethod.Zlib, ...Zlib.deflateRawSync(framed)]);

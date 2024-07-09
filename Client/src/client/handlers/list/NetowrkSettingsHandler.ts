@@ -2,9 +2,6 @@ import { NetworkSettingsPacket } from "@serenityjs/protocol";
 import { BaseHandler } from "../BaseHandler";
 import { Priority } from "@serenityjs/raknet";
 import { LoginPacket, LoginTokens } from "../../packets/game/LoginPacket";
-import { SignOptions } from "jsonwebtoken";
-import { KeyObject } from "crypto";
-import Client from "../../../../Client";
 import Logger from "../../../utils/Logger";
 
 
@@ -16,7 +13,7 @@ class NetworkSettingsHandler extends BaseHandler {
         _client.data.sendDeflated = true;
         _client.data.compressionThreshold = packet.compressionThreshold;
         const chain = [_client.data.loginData.clientIdentityChain, ..._client.data.accessToken];
-        let userChain = _client.data.loginData.clientUserChain;
+        const userChain = _client.data.loginData.clientUserChain;
         const encodedChain = JSON.stringify({ chain });
 
         const login = new LoginPacket();

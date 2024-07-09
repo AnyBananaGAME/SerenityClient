@@ -1,4 +1,4 @@
-import { RequestChunkRadiusPacket, RespawnPacket, RespawnState, SetLocalPlayerAsInitializedPacket, StartGamePacket, Vector3f } from "@serenityjs/protocol";
+import { RequestChunkRadiusPacket, RespawnPacket, RespawnState, StartGamePacket, Vector3f } from "@serenityjs/protocol";
 import { BaseHandler } from "../BaseHandler";
 import { Priority } from "@serenityjs/raknet";
 

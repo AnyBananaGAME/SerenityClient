@@ -1,10 +1,10 @@
 type Options = {
-    version?: string;
-    offline?: boolean;
-    username?: string;
-    host?: string;
-    port?: number;
-    skinData?: Object | null;
+    version: string;
+    offline: boolean;
+    username: string;
+    host: string;
+    port: number;
+    skinData: object | null;
     debug: boolean;
 }
 

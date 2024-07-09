@@ -4,6 +4,7 @@ import { Packet, Status, UnconnectedPong } from '@serenityjs/raknet';
 import { BinaryStream } from '@serenityjs/binarystream';
 import { PacketHandler } from './PacketHandler';
 import { Queue } from './Queue';
+import Logger from '../utils/Logger';
 
 
 type MCV = 'MCPE' | 'MCEE';
@@ -53,10 +54,10 @@ export default  class RakNetClient extends EventEmitter {
   }
 
   async connect(callback: (ping: Advertisement) => void) {
-    console.log('RakNet client connecting to', this.serverAddress, 'on port', this.serverPort);
+    Logger.info('RakNet client connecting to ' + this.serverAddress + ' on port ' + this.serverPort);
 	const ping = await this.ping();
 	callback(ping)
-	await this.socket.on('message', (msg, rinfo) => { this.packetHandler.handleIncoming(msg) });
+	await this.socket.on('message', (msg) => { this.packetHandler.handleIncoming(msg) });
     await this.packetHandler.sendConnectionPacket();
   }
 
@@ -71,7 +72,7 @@ export default  class RakNetClient extends EventEmitter {
 				this.isBusy = false;
 				reject(new Error('Timeout waiting for UnconnectedPong'));
 			}, 5000);
-			const messageHandler = (msg: Buffer, rinfo: dgram.RemoteInfo) => {
+			const messageHandler = (msg: Buffer) => {
 				const stream = BinaryStream.fromBuffer(msg);
 				const packetId = stream.readUint8();
 				if (packetId === Packet.UnconnectedPong) {

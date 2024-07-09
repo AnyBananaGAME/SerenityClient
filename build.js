@@ -16,6 +16,8 @@ const ignoredPaths = [
   'build.js'
 ];
 
+const allowedExtensions = ['.ts', '.js', '.mjs', '.cjs', '.tsx', '.jsx', '.json'];
+
 const mkdirSyncRecursive = (directory) => {
   const parentDirectory = path.dirname(directory);
   if (!fs.existsSync(parentDirectory)) {
@@ -51,12 +53,12 @@ const compile = async (filePath) => {
 const compileDirectory = async (srcDir, outDir) => {
   try {
     const files = fs.readdirSync(srcDir);
+    
     for (const file of files) {
       const fullPath = path.join(srcDir, file);
-      const outPath = path.join(outDir, file.replace(/\.ts$/, '.js')); 
+      const outPath = path.join(outDir, file.replace(/\.(ts|tsx)$/, '.js')); 
 
       if (ignoredPaths.includes(file)) {
-        //console.log(`Ignoring: ${fullPath}`);
         continue;
       }
 
@@ -66,14 +68,20 @@ const compileDirectory = async (srcDir, outDir) => {
           if (!fs.existsSync(outPath)) mkdirSyncRecursive(outPath);
           await compileDirectory(fullPath, outPath);
         } else {
-          if (path.extname(file) === ".json") {
-            mkdirSyncRecursive(path.dirname(outPath)); 
-            fs.copyFileSync(fullPath, outPath);
+          const ext = path.extname(file).toLowerCase();
+          if (!allowedExtensions.includes(ext)) {
+            console.log(`Skipping file with unsupported extension: ${fullPath}`);
             continue;
           }
-          const compiledCode = await compile(fullPath);
-          mkdirSyncRecursive(path.dirname(outPath));  
-          fs.writeFileSync(outPath, compiledCode);
+
+          if (ext === ".json") {
+            mkdirSyncRecursive(path.dirname(outPath)); 
+            fs.copyFileSync(fullPath, outPath);
+          } else {
+            const compiledCode = await compile(fullPath);
+            mkdirSyncRecursive(path.dirname(outPath));  
+            fs.writeFileSync(outPath, compiledCode);
+          }
         }
       } catch (error) {
         console.error(`Error processing ${fullPath}:`, error.message);

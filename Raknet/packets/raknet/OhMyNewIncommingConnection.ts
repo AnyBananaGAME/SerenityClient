@@ -2,7 +2,7 @@ import "reflect-metadata"
 
 import { Proto } from "../proto";
 import { Serialize } from "../serialize";
-import { Address, BasePacket, NewIncomingConnection, Packet, SystemAddress } from "@serenityjs/raknet";
+import { Address, BasePacket, Packet, SystemAddress } from "@serenityjs/raknet";
 import { Long } from "@serenityjs/binarystream";
 
 @Proto(Packet.NewIncomingConnection)
@@ -10,7 +10,7 @@ class OhMyNewIncommingConnection extends BasePacket {
 	/**
 	 * the server adress of the reply.
 	 */
-	@Serialize(Address) public serverAddress!: Array<Address>;
+	@Serialize(Address) public serverAddress!: Address;
 
 	/**
 	 * unknown what this is used for.

@@ -1,4 +1,4 @@
-import { Frame, FrameSet, Priority, Reliability } from '@serenityjs/raknet';
+import { Frame, FrameSet, Priority } from '@serenityjs/raknet';
 import RakNetClient from './RaknetClient';
 
 export class Queue {
@@ -39,10 +39,8 @@ export class Queue {
 		if (frame.payload.byteLength > maxSize) {
 			const buffer = Buffer.from(frame.payload);
 			const fragmentId = this.outputFragmentIndex++ % 65_536;
-			let fragmentCount = 0;
 	
 			for (let index = 0; index < buffer.byteLength; index += maxSize) {
-				fragmentCount++;
 				if (index !== 0) frame.reliableIndex = this.outputReliableIndex++;
 				
 				frame.payload = buffer.subarray(index, index + maxSize);
