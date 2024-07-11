@@ -16,7 +16,7 @@ class Logger {
   }
 
   static debug(message: string | object): void { 
-    if (_client.options.debug || process.argv.includes('--debug'))
+    if (process.argv.includes('--debug'))
       console.info(this.date(), chalk.gray("DEBUG"), message, this.getCallerPath());
   }
 

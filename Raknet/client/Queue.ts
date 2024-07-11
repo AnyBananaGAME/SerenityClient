@@ -17,7 +17,7 @@ export class Queue {
 		this.outputOrderIndex = Array.from<number>({ length: 32 }).fill(0);
 		this.outputSequenceIndex = Array.from<number>({ length: 32 }).fill(0);
 	}
-
+	
 	/**
 	 * Sends a frame to the connection.
 	 *

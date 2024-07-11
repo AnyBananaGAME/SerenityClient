@@ -1,4 +1,4 @@
-import { Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, Packet, Priority, Reliability, Status } from "@serenityjs/raknet";
+import { Ack, Address, ConnectedPing, ConnectedPong, ConnectionRequestAccepted, Frame, FrameSet, Nack, Packet, Priority, Reliability, Status } from "@serenityjs/raknet";
 import RakNetClient from "./RaknetClient";
 import OhMyNewIncommingConnection from "../packets/raknet/OhMyNewIncommingConnection";
 import { BinaryStream } from "@serenityjs/binarystream";
@@ -41,11 +41,40 @@ export class FrameHandler {
 
     private frameQueue: Queue<Frame> = new Queue<Frame>();
 
-    private raknet: RakNetClient;
+    private raknet: RakNetClient;	
+
 
     constructor(raknet: RakNetClient) {
         this.raknet = raknet;
+        setInterval(() => {
+            this.tick();
+        }, 50)
     }
+
+
+    tick(){
+		if (this.receivedFrameSequences.size > 0) {
+			const ack = new Ack();
+			ack.sequences = [...this.receivedFrameSequences].map((x) => {
+				this.receivedFrameSequences.delete(x);
+				return x;
+			});
+			this.send(ack.serialize());
+		}
+
+        if (this.lostFrameSequences.size > 0) {
+			const pk = new Nack();
+			pk.sequences = [...this.lostFrameSequences].map((x) => {
+				this.lostFrameSequences.delete(x);
+				return x;
+			});
+			this.send(pk.serialize());
+		}
+    }
+
+	public send(buffer: Buffer): void {
+		this.raknet.send(buffer);
+	}
 
     handleFrameSet(buffer: Buffer): void {
         const frameSet = new FrameSet(buffer).deserialize();

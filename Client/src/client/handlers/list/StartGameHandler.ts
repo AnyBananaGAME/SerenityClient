@@ -7,8 +7,8 @@ class StartGameHandler extends BaseHandler {
 
     public handle(packet: StartGamePacket){
         const radius = new RequestChunkRadiusPacket();
-        radius.radius = 1;
-        radius.maxRadius = 1;
+        radius.radius = 12;
+        radius.maxRadius = 12;
         _client.runtimeEntityId = packet.runtimeEntityId;
         _client.sendPacket(radius, Priority.Immediate);
         

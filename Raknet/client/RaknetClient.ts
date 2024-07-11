@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import * as dgram from 'dgram';
-import { Packet, Status, UnconnectedPong } from '@serenityjs/raknet';
+import { Address, Packet, Status, UnconnectedPong } from '@serenityjs/raknet';
 import { BinaryStream } from '@serenityjs/binarystream';
 import { PacketHandler } from './PacketHandler';
 import { Queue } from './Queue';
@@ -24,7 +24,7 @@ interface Advertisement {
 	serverPortv6: number;
 }
 export {Advertisement}
-export default  class RakNetClient extends EventEmitter {
+export default class RakNetClient extends EventEmitter {
   public socket: dgram.Socket;
   public serverAddress: string;
   public serverPort: number;
@@ -34,9 +34,11 @@ export default  class RakNetClient extends EventEmitter {
   private packetHandler: PacketHandler;
   private isBusy: boolean = false;
   public queue: Queue;
-
+  
   public status: Status = Status.Disconnected;
   public static debug = false;
+
+  public clientAdress: Address = new Address('0.0.0.0', 0, 4);
 
   constructor(serverAddress: string, serverPort: number) {
     super();
@@ -53,10 +55,10 @@ export default  class RakNetClient extends EventEmitter {
 	}, 50);
   }
 
-  async connect(callback: (ping: Advertisement) => void) {
+  async connect(callback?: (ping: Advertisement) => void) {
     Logger.info('RakNet client connecting to ' + this.serverAddress + ' on port ' + this.serverPort);
 	const ping = await this.ping();
-	callback(ping)
+	if(callback) callback(ping)
 	await this.socket.on('message', (msg) => { this.packetHandler.handleIncoming(msg) });
     await this.packetHandler.sendConnectionPacket();
   }
